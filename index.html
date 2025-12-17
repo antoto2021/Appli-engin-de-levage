@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-title" content="Levage Sécurisé">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
-    <title>Chantiers Modernes - Levage Sécurisé (Local V9.0)</title>
+    <title>Chantiers Modernes - Levage Sécurisé (V10.0 - Hybride)</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -51,7 +51,7 @@
     <style>
         body { background-color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
         
-        /* Custom Range Slider Styling (Original conservé) */
+        /* Custom Range Slider Styling */
         input[type=range] { 
             -webkit-appearance: none; 
             width: 100%; 
@@ -112,19 +112,22 @@
             Database: (p) => <IconWrapper {...p}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></IconWrapper>,
             Save: (p) => <IconWrapper {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconWrapper>,
             FileJson: (p) => <IconWrapper {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconWrapper>,
-            FileText: (p) => <IconWrapper {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconWrapper>
+            FileText: (p) => <IconWrapper {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconWrapper>,
+            Globe: (p) => <IconWrapper {...p}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></IconWrapper>
         };
 
-        const { Calculator, CheckCircle, Truck, Anchor, Move, Upload, Download, ArrowLeft, Trash2, Database, Save, FileJson, FileText } = Icons;
+        const { Calculator, CheckCircle, Truck, Anchor, Move, Upload, Download, ArrowLeft, Trash2, Database, Save, FileJson, FileText, Globe } = Icons;
 
         // --- CONSTANTES ---
-        const DB_KEY = "cmc_levage_machines"; // Clé LocalStorage BDD
+        const DB_KEY = "cmc_levage_machines"; // Clé LocalStorage BDD Locale
         const SELECTED_CRANE_KEY = "selectedCrane"; // Clé LocalStorage Grue choisie
+        const EXTERNAL_DB_URL = "engines.json"; // URL pour la BDD Externe GitHub (Simulation locale si fichier absent)
 
-        // --- DONNÉES STATIQUES (Originales) ---
+        // --- DONNÉES STATIQUES (Système) ---
         const HARDCODED_MACHINES = [
             {
                 id: "fixed_1",
+                source: "system",
                 category: "telehandler", 
                 name: "Manitou MLT 625-75H",
                 type: "telehandler", 
@@ -142,6 +145,7 @@
             },
             {
                 id: "fixed_2",
+                source: "system",
                 category: "mobile_crane",
                 name: "Liebherr LTM 1050-3.1",
                 type: "crane",
@@ -175,7 +179,6 @@
             return inside;
         };
 
-        // --- LOGIQUE DE CALCUL CENTRALE (Pour auto-sélection et vérification) ---
         const calculateMachineCapacity = (machine, dist, height, specificBoom = null) => {
             if (!machine) return 0;
             
@@ -185,12 +188,12 @@
             if (machine.mode === 'multi_chart') {
                 const checkBoom = (boomLen) => {
                     const reqReachSq = (dist * dist) + (height * height);
-                    if (reqReachSq > (boomLen * boomLen) + 0.1) return 0; // Hors de portée physique de la flèche
+                    if (reqReachSq > (boomLen * boomLen) + 0.1) return 0;
                     
                     const points = machine.charts[boomLen]?.std;
                     if (!points || points.length === 0) return 0;
-                    if (dist > points[points.length - 1].d) return 0; // Trop loin
-                    if (dist < points[0].d) return machine.maxLoad; // Trop près (théorique)
+                    if (dist > points[points.length - 1].d) return 0;
+                    if (dist < points[0].d) return machine.maxLoad;
 
                     for (let i = 0; i < points.length - 1; i++) {
                         const p1 = points[i];
@@ -207,7 +210,6 @@
                 if (specificBoom) {
                     return checkBoom(specificBoom);
                 } else {
-                    // Trouver la meilleure capacité sur toutes les flèches possibles
                     let maxCap = 0;
                     machine.boomLengths.forEach(len => {
                         const cap = checkBoom(len);
@@ -246,7 +248,6 @@
                 const header = ["Portée (m)", ...boomLengths.map(b => `Flèche ${b}m`)];
                 ws_data.push(header);
 
-                // Collect all radii
                 let allRadii = new Set();
                 boomLengths.forEach(len => {
                     if (machine.charts[len]?.std) {
@@ -280,7 +281,6 @@
             if (!machine) return;
             const doc = new jsPDF();
             
-            // Header Brand Blue
             doc.setFillColor(0, 78, 152); 
             doc.rect(0, 0, 210, 25, 'F');
             doc.setTextColor(255, 255, 255);
@@ -293,7 +293,6 @@
 
             let y = 40;
 
-            // 1. Paramètres
             doc.setTextColor(0, 0, 0);
             doc.setFontSize(12);
             doc.setFont("helvetica", "bold");
@@ -308,21 +307,19 @@
             });
             y = doc.lastAutoTable.finalY + 15;
 
-            // 2. Engin
             doc.setFontSize(12);
             doc.setFont("helvetica", "bold");
             doc.text("2. ENGIN SÉLECTIONNÉ", 14, y);
             y += 8;
             doc.autoTable({
                 startY: y,
-                head: [['Modèle', 'Type', 'Capacité Max', 'Portée Max']],
-                body: [[machine.name, machine.category, `${machine.maxLoad} kg`, `${machine.maxReach} m`]],
+                head: [['Modèle', 'Type', 'Capacité Max', 'Portée Max', 'Source BDD']],
+                body: [[machine.name, machine.category, `${machine.maxLoad} kg`, `${machine.maxReach} m`, machine.source === 'external' ? 'Externe (GitHub)' : (machine.source === 'system' ? 'Système' : 'Locale')]],
                 theme: 'grid',
                 headStyles: { fillColor: [100, 100, 100] }
             });
             y = doc.lastAutoTable.finalY + 15;
 
-            // 3. Résultat
             doc.text("3. RÉSULTAT DU CALCUL", 14, y);
             y += 8;
             const status = isSafe ? "CONFORME / AUTORISÉ" : "NON CONFORME / INTERDIT";
@@ -337,7 +334,6 @@
             });
             y = doc.lastAutoTable.finalY + 15;
 
-            // 4. Conclusion
             doc.text("4. CONCLUSION", 14, y);
             y += 10;
             doc.setFont("helvetica", "normal");
@@ -371,7 +367,7 @@
             </svg>
         );
 
-        // --- COMPOSANT SLIDER (Original conservé) ---
+        // --- COMPOSANT SLIDER ---
         const CustomRange = ({ label, value, min, max, step, onChange, unit = "", maxLabel = "" }) => {
             const range = max - min;
             const percentage = range > 0 ? ((value - min) / range) * 100 : 0;
@@ -391,13 +387,13 @@
                     </div>
                     <div className="flex justify-between text-xs text-slate-400 mt-1 font-medium">
                         <span>{min}{unit}</span>
-                        <span>{maxLabel || `Max échelle : ${Math.round(max)}${unit}`}</span>
+                        <span>{maxLabel || `Max : ${Math.round(max)}${unit}`}</span>
                     </div>
                 </div>
             );
         };
 
-        // --- MODAL GESTION BDD ---
+        // --- MODAL GESTION BDD LOCALE ---
         const DbManagerModal = ({ machines, onClose, onDelete, onReset, onImport }) => {
             const downloadJson = () => {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(machines));
@@ -449,7 +445,7 @@
                         </div>
 
                         <div className="mb-4">
-                            <h4 className="font-bold text-slate-700 mb-2">Machines Enregistrées ({machines.length})</h4>
+                            <h4 className="font-bold text-slate-700 mb-2">Machines Locales ({machines.length})</h4>
                             <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg">
                                 {machines.length === 0 ? (
                                     <div className="p-4 text-center text-slate-400 italic">Aucune machine personnalisée.</div>
@@ -489,7 +485,7 @@
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
                     <div onClick={goHome} className="hover:opacity-80 transition-opacity"><CMCLogo /></div>
                     <div className="hidden md:flex items-center gap-2 text-xs text-emerald-700 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
-                        <Database size={14} /> Mode Local (V9.0)
+                        <Globe size={14} /> Mode Hybride (V10.0)
                     </div>
                 </div>
             </header>
@@ -528,28 +524,29 @@
         );
 
         // --- PAGE CALCUL RAPIDE (DETERMINE) ---
-        const DeterminePage = () => {
+        const DeterminePage = ({ allMachines }) => {
             const [mass, setMass] = useState(0);
             const [unit, setUnit] = useState('kg');
             const [distance, setDistance] = useState(0);
-            const [height, setHeight] = useState(5); // Ajout d'une valeur par défaut réaliste
+            const [height, setHeight] = useState(5);
+            // NOUVEAU : Slider pourcentage
+            const [maxUsagePercent, setMaxUsagePercent] = useState(80);
+            
             const [progress, setProgress] = useState(0);
             const [result, setResult] = useState(null);
             const [suggestedCrane, setSuggestedCrane] = useState(null);
 
             // LOGIQUE DE RECHERCHE AUTO
             const performAutoSelect = (targetMassKg, targetDist, targetHeight) => {
-                // 1. Charger toutes les machines (Hardcoded + LocalStorage)
-                const saved = localStorage.getItem(DB_KEY);
-                const localMachines = saved ? JSON.parse(saved) : [];
-                const allMachines = [...HARDCODED_MACHINES, ...localMachines];
-
                 const candidates = [];
 
                 allMachines.forEach(m => {
                     const cap = calculateMachineCapacity(m, targetDist, targetHeight);
-                    if (cap >= targetMassKg) {
-                        candidates.push({ machine: m, capacity: cap, excess: cap - targetMassKg });
+                    // Calcul du taux d'utilisation pour cette capacité
+                    const usage = cap > 0 ? (targetMassKg / cap) * 100 : 999;
+                    
+                    if (cap >= targetMassKg && usage <= maxUsagePercent) {
+                        candidates.push({ machine: m, capacity: cap, excess: cap - targetMassKg, usage: usage });
                     }
                 });
 
@@ -578,7 +575,6 @@
                                 const moment = massInTons * distance;
                                 setResult({ tons: massInTons, moment: moment.toFixed(1) });
                                 
-                                // Lancer la recherche auto ici
                                 performAutoSelect(massKg, distance, height);
                                 
                                 return 100;
@@ -588,7 +584,7 @@
                     }, 20);
                     return () => clearInterval(interval);
                 } else { setResult(null); setProgress(0); setSuggestedCrane(null); }
-            }, [mass, unit, distance, height]);
+            }, [mass, unit, distance, height, maxUsagePercent, allMachines]); // Dépendance ajoutée : maxUsagePercent
 
             return (
                 <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-start min-h-[60vh] animate-fade-in">
@@ -610,15 +606,30 @@
                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">m</span>
                                     </div>
                                 </div>
-                                {/* NOUVEAU CHAMP HAUTEUR (Style identique) */}
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-600 mb-2">Hauteur (m) <span className="text-slate-400 text-xs font-normal">(Requis pour sélection auto)</span></label>
+                                    <label className="block text-sm font-semibold text-slate-600 mb-2">Hauteur (m)</label>
                                     <div className="relative">
                                         <input type="number" value={height || ''} onChange={(e) => setHeight(parseFloat(e.target.value))} className="w-full p-3 text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-blue outline-none transition-shadow pl-4 pr-12" placeholder="0"/>
                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">m</span>
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* NOUVEAU BLOC POUR LE SLIDER */}
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                             <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-brand-blue"/> Critère de sécurité</h2>
+                             <CustomRange 
+                                label="Taux d'utilisation max" 
+                                value={maxUsagePercent} 
+                                min={70} 
+                                max={98} 
+                                step={1} 
+                                unit="%" 
+                                onChange={(e) => setMaxUsagePercent(parseInt(e.target.value))}
+                                maxLabel="Max : 98%"
+                            />
+                            <p className="text-xs text-slate-500 mt-2 italic">L'algorithme ne proposera que des engins utilisés à moins de {maxUsagePercent}% de leur capacité pour cette charge.</p>
                         </div>
                     </div>
 
@@ -659,6 +670,9 @@
                                 {suggestedCrane ? (
                                     <div className="bg-white border border-green-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
                                         <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] px-2 py-1 font-bold rounded-bl-lg">RECOMMANDÉ</div>
+                                        <div className="absolute bottom-2 right-2 text-[10px] text-slate-400 px-2 py-1 bg-slate-100 rounded">
+                                            Source: {suggestedCrane.source === 'external' ? 'BDD Externe' : (suggestedCrane.source === 'system' ? 'Système' : 'Locale')}
+                                        </div>
                                         <h4 className="text-lg font-bold text-slate-800 mb-1">{suggestedCrane.name}</h4>
                                         <p className="text-sm text-slate-500 mb-4">{suggestedCrane.category} • Max {suggestedCrane.maxLoad}kg</p>
                                         
@@ -677,7 +691,7 @@
                                     </div>
                                 ) : (
                                     <div className="text-center p-4 text-slate-500 italic text-sm">
-                                        Aucun engin trouvé pour cette configuration.
+                                        Aucun engin trouvé pour cette configuration (limite {maxUsagePercent}%).
                                     </div>
                                 )}
                             </div>
@@ -687,30 +701,10 @@
             );
         };
 
-        // --- PAGE VERIFICATION (AVEC LOCALSTORAGE & GRAPHIQUE) ---
-        const VerifyPage = () => {
-            const [dbMachines, setDbMachines] = useState([]);
+        // --- PAGE VERIFICATION ---
+        const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onImportLocal }) => {
             const [showDbManager, setShowDbManager] = useState(false);
-
-            // Charger les données du LocalStorage au démarrage
-            useEffect(() => {
-                const saved = localStorage.getItem(DB_KEY);
-                if (saved) {
-                    try {
-                        setDbMachines(JSON.parse(saved));
-                    } catch (e) {
-                        console.error("Erreur de lecture LocalStorage", e);
-                    }
-                }
-            }, []);
-
-            // Sauvegarder dans le LocalStorage
-            const saveToLocal = (newMachines) => {
-                setDbMachines(newMachines);
-                localStorage.setItem(DB_KEY, JSON.stringify(newMachines));
-            };
-
-            const machines = useMemo(() => [...HARDCODED_MACHINES, ...dbMachines], [dbMachines]);
+            const localMachinesOnly = useMemo(() => allMachines.filter(m => m.source === 'local'), [allMachines]);
 
             const [category, setCategory] = useState('telehandler');
             const [selectedMachineId, setSelectedMachineId] = useState(null);
@@ -725,18 +719,15 @@
                 const autoSelected = localStorage.getItem(SELECTED_CRANE_KEY);
                 if (autoSelected) {
                     const m = JSON.parse(autoSelected);
-                    const found = machines.find(x => x.id === m.id);
+                    const found = allMachines.find(x => x.id === m.id);
                     if (found) {
-                        // Change category to match machine
                         setCategory(found.category);
                         setSelectedMachineId(found.id);
-                        // Clean up selection so it doesn't override manual changes later
-                        // localStorage.removeItem(SELECTED_CRANE_KEY); 
                     }
                 }
-            }, [machines]); // Run once when machines loaded
+            }, [allMachines]); 
 
-            const filteredMachines = useMemo(() => machines.filter(m => m.category === category), [machines, category]);
+            const filteredMachines = useMemo(() => allMachines.filter(m => m.category === category), [allMachines, category]);
 
             useEffect(() => {
                 if (filteredMachines.length > 0) { 
@@ -747,13 +738,12 @@
                 else { setSelectedMachineId(null); }
             }, [category, filteredMachines, selectedMachineId]);
 
-            const machine = useMemo(() => machines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, machines, filteredMachines]);
+            const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
 
             useEffect(() => {
                 if (machine?.mode === 'multi_chart' && machine?.boomLengths) { setSelectedBoomLen(machine.boomLengths[0]); }
             }, [machine]);
 
-            // Utilisation de la fonction externe
             const allowedLoad = calculateMachineCapacity(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null));
             const safeLoad = Math.floor(allowedLoad);
             const calculatedMax = safeLoad > 0 ? safeLoad * 1.1 : (machine ? machine.maxLoad : 5000);
@@ -768,7 +758,7 @@
             const isSafe = inputLoad <= safeLoad && safeLoad > 0;
             const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-            // --- GESTION IMPORT EXCEL ---
+            // --- GESTION IMPORT EXCEL (Vers BDD Locale) ---
             const handleExcelUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -808,6 +798,7 @@
                         }
                         const newMachine = {
                             id: "custom_" + Date.now(),
+                            source: "local",
                             category: category,
                             name: `${file.name.replace(/\.[^/.]+$/, "")}`,
                             type: "crane",
@@ -822,9 +813,7 @@
                             isCustom: true
                         };
                         
-                        // SAUVEGARDE LOCALE
-                        const newDb = [...dbMachines, newMachine];
-                        saveToLocal(newDb);
+                        onSaveLocal([newMachine]); // Ajoute à la liste existante via App
                         setSelectedMachineId(newMachine.id);
                         alert("Machine importée et sauvegardée localement !");
 
@@ -841,31 +830,7 @@
                 XLSX.writeFile(wb, "Modele_Import_Grue.xlsx");
             };
 
-            // --- ACTIONS MODAL ---
-            const deleteCustomMachine = (id) => {
-                if(confirm("Supprimer cette machine ?")) {
-                    const newDb = dbMachines.filter(m => m.id !== id);
-                    saveToLocal(newDb);
-                    if(selectedMachineId === id) setSelectedMachineId(null);
-                }
-            };
-
-            const resetDb = () => {
-                if(confirm("ATTENTION : Cela va effacer toutes vos machines personnalisées. Continuer ?")) {
-                    saveToLocal([]);
-                    setSelectedMachineId(null);
-                    setShowDbManager(false);
-                }
-            };
-
-            const importDb = (importedMachines) => {
-                if(confirm(`Importer ${importedMachines.length} machines ? Cela remplacera la base actuelle.`)) {
-                    saveToLocal(importedMachines);
-                    setShowDbManager(false);
-                }
-            }
-
-            // --- GRAPHIQUE 2D (STRICTEMENT IDENTIQUE A L'ORIGINAL) ---
+            // --- GRAPHIQUE 2D ---
             const GraphChart2D = () => {
                 if(!machine) return null;
                 const width = 600;
@@ -926,8 +891,8 @@
             return (
                 <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
                     
-                    {/* MENU GESTION BDD */}
-                    {showDbManager && <DbManagerModal machines={dbMachines} onClose={() => setShowDbManager(false)} onDelete={deleteCustomMachine} onReset={resetDb} onImport={importDb}/>}
+                    {/* MENU GESTION BDD LOCALE UNIQUEMENT */}
+                    {showDbManager && <DbManagerModal machines={localMachinesOnly} onClose={() => setShowDbManager(false)} onDelete={onDeleteLocal} onReset={onResetLocal} onImport={onImportLocal}/>}
 
                     <div className="flex flex-wrap justify-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
                         {[{id: 'telehandler', label: 'Engin Télescopique', icon: Truck}, {id: 'mobile_crane', label: 'Grue Mobile', icon: Move}, {id: 'crawler_crane', label: 'Grue Treillis', icon: Anchor}].map(cat => (
@@ -943,16 +908,21 @@
                                 <div className="absolute top-0 left-0 w-1 h-full bg-[#004e98]"></div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-bold text-slate-800 flex items-center gap-2"><Truck size={18} className="text-[#004e98]"/> Choix de l'engin</h3>
-                                    <button onClick={() => setShowDbManager(true)} className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 flex items-center gap-1"><Database size={12}/> Gérer BDD</button>
+                                    <button onClick={() => setShowDbManager(true)} className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 flex items-center gap-1"><Database size={12}/> Gérer Locale</button>
                                 </div>
                                 
-                                <div className="flex gap-2 mb-4">
-                                    <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="flex-1 p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
-                                        {filteredMachines.map(m => <option key={m.id} value={m.id}>{m.name} {m.isCustom ? "(Local)" : ""}</option>)}
+                                <div className="mb-4">
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Sélectionner dans la BDD (Globale & Locale)</label>
+                                    <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
+                                            {filteredMachines.map(m => (
+                                                <option key={m.id} value={m.id}>
+                                                    {m.name} 
+                                                    {m.source === 'external' ? " [BDD GitHub]" : (m.source === 'local' ? " [Local]" : " [Système]")}
+                                                </option>
+                                            ))}
                                     </select>
                                 </div>
 
-                                {/* BOUTONS NOUVEAUX : EXCEL ET PDF */}
                                 {machine && (
                                     <div className="flex gap-2 mb-4">
                                         <button 
@@ -970,7 +940,7 @@
 
                                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
                                     <div className="flex justify-between items-center mb-2">
-                                        <span className="text-xs font-bold text-blue-800 flex items-center gap-1"><Database size={12}/> Import Local</span>
+                                        <span className="text-xs font-bold text-blue-800 flex items-center gap-1"><Database size={12}/> Import Fichier Spécifique</span>
                                         <button onClick={downloadTemplate} className="text-[10px] text-blue-600 underline flex items-center gap-1 hover:text-blue-800"><Download size={10}/> Modèle .xlsx</button>
                                     </div>
                                     <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-blue-200 border-dashed rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
@@ -1041,6 +1011,75 @@
 
         const App = () => {
             const [page, setPage] = useState('home');
+            
+            // --- GESTION CENTRALISÉE DES DONNÉES ---
+            const [localMachines, setLocalMachines] = useState([]);
+            const [externalMachines, setExternalMachines] = useState([]);
+
+            // 1. Charger LocalStorage
+            useEffect(() => {
+                const saved = localStorage.getItem(DB_KEY);
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        // S'assurer que la source est marquée "local"
+                        setLocalMachines(parsed.map(m => ({...m, source: 'local'})));
+                    } catch (e) { console.error("Err LocalStorage", e); }
+                }
+            }, []);
+
+            // 2. Charger BDD Externe (GitHub)
+            useEffect(() => {
+                const fetchExternal = async () => {
+                    try {
+                        const response = await fetch(EXTERNAL_DB_URL);
+                        if (!response.ok) throw new Error("Fichier non trouvé");
+                        const data = await response.json();
+                        // Marquer comme source externe
+                        setExternalMachines(data.map(m => ({...m, source: 'external'})));
+                    } catch (err) {
+                        console.warn("Impossible de charger engines.json (C'est normal si vous n'avez pas de serveur local ou si le fichier manque). Mode dégradé actif.");
+                    }
+                };
+                fetchExternal();
+            }, []);
+
+            // 3. Fusionner toutes les machines
+            const allMachines = useMemo(() => {
+                return [...HARDCODED_MACHINES, ...externalMachines, ...localMachines];
+            }, [externalMachines, localMachines]);
+
+            // Handlers pour la BDD Locale
+            const saveLocal = (newMachines) => {
+                // Ajouter aux machines locales existantes
+                const updated = [...localMachines, ...newMachines.map(m => ({...m, source: 'local'}))];
+                setLocalMachines(updated);
+                localStorage.setItem(DB_KEY, JSON.stringify(updated));
+            };
+
+            const deleteLocal = (id) => {
+                if(confirm("Supprimer cette machine locale ?")) {
+                    const updated = localMachines.filter(m => m.id !== id);
+                    setLocalMachines(updated);
+                    localStorage.setItem(DB_KEY, JSON.stringify(updated));
+                }
+            };
+
+            const resetLocal = () => {
+                if(confirm("Effacer TOUTES les machines locales ?")) {
+                    setLocalMachines([]);
+                    localStorage.setItem(DB_KEY, JSON.stringify([]));
+                }
+            };
+            
+            const importLocal = (imported) => {
+                 if(confirm(`Importer ${imported.length} machines ? Cela REMPLACE la base locale.`)) {
+                     const marked = imported.map(m => ({...m, source: 'local'}));
+                     setLocalMachines(marked);
+                     localStorage.setItem(DB_KEY, JSON.stringify(marked));
+                 }
+            }
+
             return (
                 <div className="min-h-screen">
                     <Header goHome={() => setPage('home')} />
@@ -1051,8 +1090,8 @@
                                 <button onClick={() => setPage('home')} className="mb-6 flex items-center text-slate-500 hover:text-brand-blue font-bold px-4 py-2 hover:bg-white rounded-lg transition-colors">
                                     <ArrowLeft size={20} className="mr-2"/> Retour Accueil
                                 </button>
-                                {page === 'determine' && <DeterminePage />}
-                                {page === 'verify' && <VerifyPage />}
+                                {page === 'determine' && <DeterminePage allMachines={allMachines} />}
+                                {page === 'verify' && <VerifyPage allMachines={allMachines} onSaveLocal={saveLocal} onDeleteLocal={deleteLocal} onResetLocal={resetLocal} onImportLocal={importLocal}/>}
                             </div>
                         )}
                     </main>
@@ -1065,4 +1104,3 @@
     </script>
 </body>
 </html>
-
