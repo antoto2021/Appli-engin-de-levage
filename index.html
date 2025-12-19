@@ -6,7 +6,8 @@
     <meta name="apple-mobile-web-app-title" content="Levage Sécurisé">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
-    <title>Chantiers Modernes - Levage Sécurisé (V10.0 - Hybride)</title>
+
+    <title>Chantiers Modernes - Levage Sécurisé (V10.1 - Multi-Config)</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -113,10 +114,11 @@
             Save: (p) => <IconWrapper {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconWrapper>,
             FileJson: (p) => <IconWrapper {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconWrapper>,
             FileText: (p) => <IconWrapper {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconWrapper>,
-            Globe: (p) => <IconWrapper {...p}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></IconWrapper>
+            Globe: (p) => <IconWrapper {...p}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></IconWrapper>,
+            Layers: (p) => <IconWrapper {...p}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></IconWrapper>
         };
 
-        const { Calculator, CheckCircle, Truck, Anchor, Move, Upload, Download, ArrowLeft, Trash2, Database, Save, FileJson, FileText, Globe } = Icons;
+        const { Calculator, CheckCircle, Truck, Anchor, Move, Upload, Download, ArrowLeft, Trash2, Database, Save, FileJson, FileText, Globe, Layers } = Icons;
 
         // --- CONSTANTES ---
         const DB_KEY = "cmc_levage_machines"; // Clé LocalStorage BDD Locale
@@ -150,21 +152,27 @@
                 name: "Liebherr LTM 1050-3.1",
                 type: "crane",
                 mode: "multi_chart",
+                hasCounterweights: true,
+                counterweights: ["9t"],
                 maxLoad: 50000,
                 maxReach: 34,
                 maxHeight: 40,
                 hasTelescoping: true, 
                 boomLengths: [11.4, 16.7, 22, 27.3, 32.6, 35.8, 38],
                 charts: {
-                "11.4": { std: [{d:3, l:50}, {d:4, l:41.3}, {d:5, l:24.1}, {d:6, l:29}, {d:7, l:24.5}, {d:8, l:16.8}], tele: [{d:3, l:42}, {d:4, l:36.5}, {d:5, l:30.6}, {d:6, l:25.5}, {d:7, l:21.5}, {d:8, l:16.8}] },
-                "16.7": { std: [{d:3, l:24.7}, {d:4, l:26.5}, {d:5, l:27.8}, {d:6, l:26}, {d:7, l:21.8}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}], tele: [{d:3, l:20.2}, {d:4, l:20.2}, {d:5, l:20.2}, {d:6, l:20.2}, {d:7, l:20.2}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}] },
-                "22": { std: [{d:3, l:24.6}, {d:4, l:25.1}, {d:5, l:24.2}, {d:6, l:22.7}, {d:7, l:21}, {d:8, l:18.6}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}], tele: [{d:3, l:19.1}, {d:4, l:18.9}, {d:5, l:18.8}, {d:6, l:18.7}, {d:7, l:18.6}, {d:8, l:18.2}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}] },
-                "27.3": { std: [{d:3, l:17}, {d:4, l:16.6}, {d:5, l:16}, {d:6, l:15.3}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}], tele: [{d:3, l:15.8}, {d:4, l:15.5}, {d:5, l:15.2}, {d:6, l:15}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}] },
-                "32.6": { std: [{d:4, l:11.5}, {d:5, l:11.3}, {d:6, l:11}, {d:7, l:10.7}, {d:8, l:10.2}, {d:9, l:9.7}, {d:10, l:9.2}, {d:11, l:8.6}, {d:12, l:8}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}], tele: [{d:4, l:10.7}, {d:5, l:10.3}, {d:6, l:10}, {d:7, l:9.7}, {d:8, l:9.4}, {d:9, l:9.2}, {d:10, l:8.8}, {d:11, l:8.1}, {d:12, l:7.9}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}] },
-                "35.8": { std: [{d:5, l:9.5}, {d:6, l:9.4}, {d:7, l:9.2}, {d:8, l:8.9}, {d:9, l:8.5}, {d:10, l:8.1}, {d:11, l:7.7}, {d:12, l:7.3}, {d:14, l:6.7}, {d:16, l:6.1}, {d:18, l:5.4}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}], tele: [{d:5, l:6.9}, {d:6, l:6.6}, {d:7, l:6.3}, {d:8, l:6.1}, {d:9, l:5.8}, {d:10, l:5.6}, {d:11, l:5.4}, {d:12, l:5.2}, {d:14, l:4.9}, {d:16, l:4.6}, {d:18, l:4}, {d:20, l:3.7}, {d:22, l:3.2}, {d:24, l:2.4}, {d:26, l:1.8}, {d:28, l:1.4}, {d:30, l:1}] },
-                "38": { std: [{d:6, l:7.5}, {d:7, l:7.2}, {d:8, l:7}, {d:9, l:6.7}, {d:10, l:6.5}, {d:11, l:6.2}, {d:12, l:6}, {d:14, l:5.6}, {d:16, l:5.2}, {d:18, l:4.8}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.2}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}, {d:34, l:1.4}], tele: [{d:6, l:3.7}, {d:7, l:3.5}, {d:8, l:3.3}, {d:9, l:3.2}, {d:10, l:3}, {d:11, l:2.8}, {d:12, l:2.7}, {d:14, l:2.5}, {d:16, l:2.3}, {d:18, l:1.7}, {d:20, l:1.3}, {d:22, l:0.9}] }
+                    "9t": {                
+                        "11.4": { std: [{d:3, l:50}, {d:4, l:41.3}, {d:5, l:24.1}, {d:6, l:29}, {d:7, l:24.5}, {d:8, l:16.8}], tele: [{d:3, l:42}, {d:4, l:36.5}, {d:5, l:30.6}, {d:6, l:25.5}, {d:7, l:21.5}, {d:8, l:16.8}] },
+                        "16.7": { std: [{d:3, l:24.7}, {d:4, l:26.5}, {d:5, l:27.8}, {d:6, l:26}, {d:7, l:21.8}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}], tele: [{d:3, l:20.2}, {d:4, l:20.2}, {d:5, l:20.2}, {d:6, l:20.2}, {d:7, l:20.2}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}] },
+                        "22": { std: [{d:3, l:24.6}, {d:4, l:25.1}, {d:5, l:24.2}, {d:6, l:22.7}, {d:7, l:21}, {d:8, l:18.6}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}], tele: [{d:3, l:19.1}, {d:4, l:18.9}, {d:5, l:18.8}, {d:6, l:18.7}, {d:7, l:18.6}, {d:8, l:18.2}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}] },
+                        "27.3": { std: [{d:3, l:17}, {d:4, l:16.6}, {d:5, l:16}, {d:6, l:15.3}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}], tele: [{d:3, l:15.8}, {d:4, l:15.5}, {d:5, l:15.2}, {d:6, l:15}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}] },
+                        "32.6": { std: [{d:4, l:11.5}, {d:5, l:11.3}, {d:6, l:11}, {d:7, l:10.7}, {d:8, l:10.2}, {d:9, l:9.7}, {d:10, l:9.2}, {d:11, l:8.6}, {d:12, l:8}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}], tele: [{d:4, l:10.7}, {d:5, l:10.3}, {d:6, l:10}, {d:7, l:9.7}, {d:8, l:9.4}, {d:9, l:9.2}, {d:10, l:8.8}, {d:11, l:8.1}, {d:12, l:7.9}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}] },
+                        "35.8": { std: [{d:5, l:9.5}, {d:6, l:9.4}, {d:7, l:9.2}, {d:8, l:8.9}, {d:9, l:8.5}, {d:10, l:8.1}, {d:11, l:7.7}, {d:12, l:7.3}, {d:14, l:6.7}, {d:16, l:6.1}, {d:18, l:5.4}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}], tele: [{d:5, l:6.9}, {d:6, l:6.6}, {d:7, l:6.3}, {d:8, l:6.1}, {d:9, l:5.8}, {d:10, l:5.6}, {d:11, l:5.4}, {d:12, l:5.2}, {d:14, l:4.9}, {d:16, l:4.6}, {d:18, l:4}, {d:20, l:3.7}, {d:22, l:3.2}, {d:24, l:2.4}, {d:26, l:1.8}, {d:28, l:1.4}, {d:30, l:1}] },
+                        "38": { std: [{d:6, l:7.5}, {d:7, l:7.2}, {d:8, l:7}, {d:9, l:6.7}, {d:10, l:6.5}, {d:11, l:6.2}, {d:12, l:6}, {d:14, l:5.6}, {d:16, l:5.2}, {d:18, l:4.8}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.2}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}, {d:34, l:1.4}], tele: [{d:6, l:3.7}, {d:7, l:3.5}, {d:8, l:3.3}, {d:9, l:3.2}, {d:10, l:3}, {d:11, l:2.8}, {d:12, l:2.7}, {d:14, l:2.5}, {d:16, l:2.3}, {d:18, l:1.7}, {d:20, l:1.3}, {d:22, l:0.9}] }
+                    }
+                        
                 }
-            }
+
+            },
         ];
 
         // --- UTILITAIRES ---
@@ -179,21 +187,27 @@
             return inside;
         };
 
-        const calculateMachineCapacity = (machine, dist, height, specificBoom = null) => {
+        const calculateMachineCapacity = (machine, dist, height, specificBoom = null, specificCwt = null) => {
             if (!machine) return 0;
             
             // 1. Vérif Enveloppe
             if (dist > machine.maxReach || height > machine.maxHeight) return 0;
 
             if (machine.mode === 'multi_chart') {
-                const checkBoom = (boomLen) => {
+                const checkBoom = (boomLen, cwt) => {
                     const reqReachSq = (dist * dist) + (height * height);
                     if (reqReachSq > (boomLen * boomLen) + 0.1) return 0;
                     
-                    const points = machine.charts[boomLen]?.std;
+                    let points;
+                    if (machine.hasCounterweights && cwt) {
+                         points = machine.charts[cwt]?.[boomLen]?.std;
+                    } else {
+                         points = machine.charts[boomLen]?.std;
+                    }
+                    
                     if (!points || points.length === 0) return 0;
                     if (dist > points[points.length - 1].d) return 0;
-                    if (dist < points[0].d) return machine.maxLoad;
+                    if (dist < points[0].d) return 0; // Correction : Retourner 0 si rayon < rayon min (Hors abaque)
 
                     for (let i = 0; i < points.length - 1; i++) {
                         const p1 = points[i];
@@ -208,13 +222,22 @@
                 }
 
                 if (specificBoom) {
-                    return checkBoom(specificBoom);
+                    return checkBoom(specificBoom, specificCwt);
                 } else {
+                    // Recherche de la meilleure capacité (sur toutes les flèches)
+                    // Si machine à contre-poids, on doit savoir lequel utiliser.
+                    // Pour "Déterminer", on cherche la meilleure config possible.
                     let maxCap = 0;
-                    machine.boomLengths.forEach(len => {
-                        const cap = checkBoom(len);
-                        if (cap > maxCap) maxCap = cap;
+                    
+                    const cwtsToCheck = machine.hasCounterweights ? machine.counterweights : [null];
+                    
+                    cwtsToCheck.forEach(cwt => {
+                         machine.boomLengths.forEach(len => {
+                            const cap = checkBoom(len, cwt);
+                            if (cap > maxCap) maxCap = cap;
+                        });
                     });
+                    
                     return maxCap;
                 }
             }
@@ -241,43 +264,55 @@
         const exportCraneExcel = (machine) => {
             if (!machine) return;
             const wb = XLSX.utils.book_new();
-            let ws_data = [];
+
+            const createSheetForData = (chartData, sheetName) => {
+                 let ws_data = [];
+                 const boomLengths = machine.boomLengths;
+                 const header = ["Portée (m)", ...boomLengths.map(b => `Flèche ${b}m`)];
+                 ws_data.push(header);
+
+                 let allRadii = new Set();
+                 boomLengths.forEach(len => {
+                     if (chartData[len]?.std) {
+                         chartData[len].std.forEach(p => allRadii.add(p.d));
+                     }
+                 });
+                 const sortedRadii = Array.from(allRadii).sort((a,b) => a - b);
+
+                 sortedRadii.forEach(r => {
+                     let row = [r];
+                     boomLengths.forEach(len => {
+                         const points = chartData[len]?.std || [];
+                         const p = points.find(pt => Math.abs(pt.d - r) < 0.1);
+                         row.push(p ? p.l : ""); 
+                     });
+                     ws_data.push(row);
+                 });
+                 const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                 XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            };
 
             if (machine.mode === 'multi_chart') {
-                const boomLengths = machine.boomLengths;
-                const header = ["Portée (m)", ...boomLengths.map(b => `Flèche ${b}m`)];
-                ws_data.push(header);
-
-                let allRadii = new Set();
-                boomLengths.forEach(len => {
-                    if (machine.charts[len]?.std) {
-                        machine.charts[len].std.forEach(p => allRadii.add(p.d));
-                    }
-                });
-                const sortedRadii = Array.from(allRadii).sort((a,b) => a - b);
-
-                sortedRadii.forEach(r => {
-                    let row = [r];
-                    boomLengths.forEach(len => {
-                        const points = machine.charts[len]?.std || [];
-                        const p = points.find(pt => Math.abs(pt.d - r) < 0.1);
-                        row.push(p ? p.l : ""); 
+                if(machine.hasCounterweights) {
+                    machine.counterweights.forEach(cwt => {
+                        createSheetForData(machine.charts[cwt], cwt);
                     });
-                    ws_data.push(row);
-                });
+                } else {
+                    createSheetForData(machine.charts, "Abaque");
+                }
             } else if (machine.mode === 'zone') {
-                ws_data = [["Zone ID", "Charge Max (kg)"]];
+                let ws_data = [["Zone ID", "Charge Max (kg)"]];
                 machine.zones.forEach(z => {
                     ws_data.push([z.id, z.load]);
                 });
+                const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                XLSX.utils.book_append_sheet(wb, ws, "Zones");
             }
 
-            const ws = XLSX.utils.aoa_to_sheet(ws_data);
-            XLSX.utils.book_append_sheet(wb, ws, "Abaque");
             XLSX.writeFile(wb, `${machine.name}_abaque_${formatDateTime()}.xlsx`);
         };
 
-        const generateAdequacyPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad) => {
+        const generateAdequacyPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt) => {
             if (!machine) return;
             const doc = new jsPDF();
             
@@ -311,10 +346,16 @@
             doc.setFont("helvetica", "bold");
             doc.text("2. ENGIN SÉLECTIONNÉ", 14, y);
             y += 8;
+            
+            let configDetails = "";
+            if(machine.hasCounterweights && currentCwt) {
+                configDetails = `Contrepoids: ${currentCwt}`;
+            }
+
             doc.autoTable({
                 startY: y,
-                head: [['Modèle', 'Type', 'Capacité Max', 'Portée Max', 'Source BDD']],
-                body: [[machine.name, machine.category, `${machine.maxLoad} kg`, `${machine.maxReach} m`, machine.source === 'external' ? 'Externe (GitHub)' : (machine.source === 'system' ? 'Système' : 'Locale')]],
+                head: [['Modèle', 'Type', 'Config', 'Source']],
+                body: [[machine.name, machine.category, configDetails || "Standard", machine.source === 'external' ? 'Externe' : (machine.source === 'system' ? 'Système' : 'Locale')]],
                 theme: 'grid',
                 headStyles: { fillColor: [100, 100, 100] }
             });
@@ -485,7 +526,7 @@
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
                     <div onClick={goHome} className="hover:opacity-80 transition-opacity"><CMCLogo /></div>
                     <div className="hidden md:flex items-center gap-2 text-xs text-emerald-700 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
-                        <Globe size={14} /> Mode Hybride (V10.0)
+                        <Layers size={14} /> V10.1 Multi-Config
                     </div>
                 </div>
             </header>
@@ -541,7 +582,13 @@
                 const candidates = [];
 
                 allMachines.forEach(m => {
+                    // Pour les machines à contrepoids, on doit tester si AU MOINS UNE config marche
+                    // Et idéalement renvoyer la config minimale.
+                    // Ici on simplifie : on vérifie si la machine est capable dans sa config max ou n'importe laquelle.
+                    // La fonction calculateMachineCapacity en mode 'auto' (sans args spécifiques) renvoie le max absolu.
+                    
                     const cap = calculateMachineCapacity(m, targetDist, targetHeight);
+                    
                     // Calcul du taux d'utilisation pour cette capacité
                     const usage = cap > 0 ? (targetMassKg / cap) * 100 : 999;
                     
@@ -584,7 +631,7 @@
                     }, 20);
                     return () => clearInterval(interval);
                 } else { setResult(null); setProgress(0); setSuggestedCrane(null); }
-            }, [mass, unit, distance, height, maxUsagePercent, allMachines]); // Dépendance ajoutée : maxUsagePercent
+            }, [mass, unit, distance, height, maxUsagePercent, allMachines]); 
 
             return (
                 <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-start min-h-[60vh] animate-fade-in">
@@ -623,11 +670,11 @@
                                 label="Taux d'utilisation max" 
                                 value={maxUsagePercent} 
                                 min={70} 
-                                max={100} 
+                                max={98} 
                                 step={1} 
                                 unit="%" 
                                 onChange={(e) => setMaxUsagePercent(parseInt(e.target.value))}
-                                maxLabel="Max : 100%"
+                                maxLabel="Max : 98%"
                             />
                             <p className="text-xs text-slate-500 mt-2 italic">L'algorithme ne proposera que des engins utilisés à moins de {maxUsagePercent}% de leur capacité pour cette charge.</p>
                         </div>
@@ -712,6 +759,7 @@
             const [inputDist, setInputDist] = useState(5);    
             const [inputHeight, setInputHeight] = useState(2);
             const [selectedBoomLen, setSelectedBoomLen] = useState(0);
+            const [selectedCwt, setSelectedCwt] = useState(null); // NOUVEAU : State Contrepoids
             const [isUploading, setIsUploading] = useState(false);
 
             // AUTO SELECTION AU CHARGEMENT si dispo dans localStorage
@@ -741,10 +789,19 @@
             const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
 
             useEffect(() => {
-                if (machine?.mode === 'multi_chart' && machine?.boomLengths) { setSelectedBoomLen(machine.boomLengths[0]); }
+                if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
+                    setSelectedBoomLen(machine.boomLengths[0]); 
+                }
+                // Reset CWT if machine changes
+                if(machine?.hasCounterweights && machine?.counterweights) {
+                    setSelectedCwt(machine.counterweights[machine.counterweights.length - 1]); // Default to max Cwt for safety/best cap
+                } else {
+                    setSelectedCwt(null);
+                }
             }, [machine]);
 
-            const allowedLoad = calculateMachineCapacity(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null));
+            // Calcul capacité avec prise en compte du CWT
+            const allowedLoad = calculateMachineCapacity(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null), selectedCwt);
             const safeLoad = Math.floor(allowedLoad);
             const calculatedMax = safeLoad > 0 ? safeLoad * 1.1 : (machine ? machine.maxLoad : 5000);
             const finalMassSliderMax = Math.max(calculatedMax, 100);
@@ -768,34 +825,67 @@
                     try {
                         const bstr = evt.target.result;
                         const wb = XLSX.read(bstr, { type: 'binary' });
-                        const wsname = wb.SheetNames[0];
-                        const ws = wb.Sheets[wsname];
-                        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-                        const headerRow = data[0];
-                        const boomLengths = [];
-                        const colToBoom = {};
-                        for (let c = 1; c < headerRow.length; c++) {
-                            const val = parseFloat(headerRow[c]);
-                            if (!isNaN(val)) { boomLengths.push(val); colToBoom[c] = val; }
-                        }
-                        const charts = {};
-                        boomLengths.forEach(len => charts[len] = { std: [] });
-                        let maxLoadFound = 0; let maxReachFound = 0;
-                        for (let r = 1; r < data.length; r++) {
-                            const row = data[r];
-                            const radius = parseFloat(row[0]);
-                            if (!isNaN(radius)) {
-                                if (radius > maxReachFound) maxReachFound = radius;
-                                for (let c = 1; c < row.length; c++) {
-                                    const loadVal = parseFloat(row[c]);
-                                    const boomLen = colToBoom[c];
-                                    if (boomLen && !isNaN(loadVal)) {
-                                        charts[boomLen].std.push({ d: radius, l: loadVal });
-                                        if (loadVal > maxLoadFound) maxLoadFound = loadVal;
-                                    }
+                        
+                        // DETECTION MULTI-SHEET (Multi-Cwt)
+                        const isMultiSheet = wb.SheetNames.length > 1;
+                        let counterweights = [];
+                        let charts = {};
+                        let boomLengthsGlobal = new Set();
+                        let maxLoadFound = 0; 
+                        let maxReachFound = 0;
+
+                        // Fonction pour parser une sheet
+                        const parseSheet = (sheetName) => {
+                             const ws = wb.Sheets[sheetName];
+                             const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                             if(data.length < 2) return null;
+
+                             const headerRow = data[0];
+                             const colToBoom = {};
+                             const sheetCharts = {};
+
+                             for (let c = 1; c < headerRow.length; c++) {
+                                 const val = parseFloat(headerRow[c]);
+                                 if (!isNaN(val)) { 
+                                     boomLengthsGlobal.add(val); 
+                                     colToBoom[c] = val; 
+                                     sheetCharts[val] = { std: [] };
+                                 }
+                             }
+                             
+                             for (let r = 1; r < data.length; r++) {
+                                 const row = data[r];
+                                 const radius = parseFloat(row[0]);
+                                 if (!isNaN(radius)) {
+                                     if (radius > maxReachFound) maxReachFound = radius;
+                                     for (let c = 1; c < row.length; c++) {
+                                         const loadVal = parseFloat(row[c]);
+                                         const boomLen = colToBoom[c];
+                                         if (boomLen && !isNaN(loadVal)) {
+                                             sheetCharts[boomLen].std.push({ d: radius, l: loadVal });
+                                             if (loadVal > maxLoadFound) maxLoadFound = loadVal;
+                                         }
+                                     }
+                                 }
+                             }
+                             return sheetCharts;
+                        };
+
+                        if (isMultiSheet) {
+                            wb.SheetNames.forEach(sheetName => {
+                                const cwtData = parseSheet(sheetName);
+                                if(cwtData) {
+                                    counterweights.push(sheetName);
+                                    charts[sheetName] = cwtData;
                                 }
-                            }
+                            });
+                        } else {
+                            // Single sheet logic
+                            charts = parseSheet(wb.SheetNames[0]);
                         }
+
+                        const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
+
                         const newMachine = {
                             id: "custom_" + Date.now(),
                             source: "local",
@@ -807,6 +897,8 @@
                             maxReach: maxReachFound,
                             maxHeight: Math.max(...boomLengths) + 2,
                             hasTelescoping: false,
+                            hasCounterweights: isMultiSheet,
+                            counterweights: isMultiSheet ? counterweights : null,
                             boomLengths: boomLengths,
                             charts: charts,
                             createdAt: new Date().toISOString(),
@@ -823,11 +915,36 @@
             };
 
             const downloadTemplate = () => {
-                const ws_data = [["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], [3, 50, 40, null, null], [10, 20, 18, 15, 12], [30, null, null, 4, 3]];
-                const ws = XLSX.utils.aoa_to_sheet(ws_data);
                 const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Modele_Grue");
-                XLSX.writeFile(wb, "Modele_Import_Grue.xlsx");
+                
+                // Créer plusieurs sheets pour l'exemple
+                const sheets = [
+                    { name: "0t", multiplier: 0.5 },
+                    { name: "12t", multiplier: 0.8 },
+                    { name: "24t", multiplier: 1.0 }
+                ];
+
+                const baseData = [
+                    ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], 
+                    [3, 50, 40, null, null], 
+                    [10, 20, 18, 15, 12], 
+                    [30, null, null, 4, 3]
+                ];
+
+                sheets.forEach(sheet => {
+                    // Clone et applique multiplicateur pour simuler capacité différente
+                    const data = baseData.map((row, i) => {
+                        if (i === 0) return row;
+                        return row.map((cell, j) => {
+                            if (j === 0 || cell === null) return cell;
+                            return Number((cell * sheet.multiplier).toFixed(1));
+                        });
+                    });
+                    const ws = XLSX.utils.aoa_to_sheet(data);
+                    XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+                });
+
+                XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
             };
 
             // --- GRAPHIQUE 2D ---
@@ -928,12 +1045,12 @@
                                         <button 
                                             onClick={() => exportCraneExcel(machine)}
                                             className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors">
-                                            <FileText size={14}/> Abaque.xlsx
+                                            <FileText size={14}/> Abaque .xlsx
                                         </button>
                                         <button 
-                                            onClick={() => generateAdequacyPDF(machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad)}
+                                            onClick={() => generateAdequacyPDF(machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, selectedCwt)}
                                             className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors">
-                                            <FileText size={14}/> Adéquation de levage.pdf
+                                            <FileText size={14}/> Rapport .pdf
                                         </button>
                                     </div>
                                 )}
@@ -941,7 +1058,7 @@
                                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
                                     <div className="flex justify-between items-center mb-2">
                                         <span className="text-xs font-bold text-blue-800 flex items-center gap-1"><Database size={12}/> Import Fichier Spécifique</span>
-                                        <button onClick={downloadTemplate} className="text-[10px] text-blue-600 underline flex items-center gap-1 hover:text-blue-800"><Download size={10}/> Modèle .xlsx</button>
+                                        <button onClick={downloadTemplate} className="text-[10px] text-blue-600 underline flex items-center gap-1 hover:text-blue-800"><Download size={10}/> Modèle Multi-Onglet</button>
                                     </div>
                                     <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-blue-200 border-dashed rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
                                         {isUploading ? <span className="text-xs font-bold text-blue-600 animate-pulse">Traitement...</span> : (
@@ -959,16 +1076,32 @@
                                 <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Configuration de Levage</h3>
                                 <div className="space-y-6">
                                     {machine && machine.mode === 'multi_chart' && (
-                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                            <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {machine.boomLengths.map(len => (
-                                                    <button key={len} onClick={() => setSelectedBoomLen(len)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}>
-                                                        {len}
-                                                    </button>
-                                                ))}
+                                        <>
+                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {machine.boomLengths.map(len => (
+                                                        <button key={len} onClick={() => setSelectedBoomLen(len)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}>
+                                                            {len}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
+
+                                            {/* SELECTEUR DE CONTREPOIDS (NOUVEAU) */}
+                                            {machine.hasCounterweights && (
+                                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {machine.counterweights.map(cwt => (
+                                                            <button key={cwt} onClick={() => setSelectedCwt(cwt)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}>
+                                                                {cwt}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                     <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={finalMassSliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                                     <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
@@ -989,6 +1122,7 @@
                                         <div className="text-right">
                                             <div className="text-4xl font-bold text-slate-800">{safeLoad/1000} <span className="text-xl font-semibold">t</span></div>
                                             <div className="text-xs text-slate-500 mt-1">Max Autorisé à {inputDist}m</div>
+                                            {machine && machine.hasCounterweights && <div className="text-xs text-brand-red font-bold mt-1">CWT: {selectedCwt}</div>}
                                         </div>
                                     </div>
                                     
