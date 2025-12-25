@@ -6,27 +6,18 @@
     <meta name="apple-mobile-web-app-title" content="Levage Sécurisé">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
-
-    <title>Chantiers Modernes - Levage Sécurisé (V10.1 - Multi-Config)</title>
+        
+    <title>Chantiers Modernes - Levage Sécurisé (V10.3)</title>
     
-    <!-- React & ReactDOM -->
+    <!-- 1. LIBRAIRIES REQUISES -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- SheetJS pour Excel -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-
-    <!-- jsPDF & AutoTable pour PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-
-    <!-- Lucide Icons (via unpkg pour React) -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <script>
@@ -50,40 +41,67 @@
     </script>
 
     <style>
-        body { background-color: #f8fafc; font-family: 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+        body { background-color: #f8fafc; font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
         
-        /* Custom Range Slider Styling */
-        input[type=range] { 
-            -webkit-appearance: none; 
-            width: 100%; 
-            background: transparent; 
-            height: 24px; 
-            cursor: pointer;
-        }
-        
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; height: 24px; cursor: pointer; }
         input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: #004e98; cursor: pointer; margin-top: -10px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 2px solid white; position: relative; z-index: 20; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; border-radius: 3px; }
 
-        /* Thumb styling */
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 24px;
-            width: 24px;
-            border-radius: 50%;
-            background: #004e98;
-            cursor: pointer;
-            margin-top: -10px; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            border: 2px solid white;
+        /* --- STYLES DU MODULE INFO --- */
+        .fade-in-modal { animation: fadeInModal 0.3s ease-in-out; }
+        @keyframes fadeInModal { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        .collapsible-wrapper { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-in-out, opacity 0.4s ease-in-out, padding 0.4s ease; opacity: 0; }
+        .expanded .collapsible-wrapper { max-height: 2000px; opacity: 1; padding-bottom: 10px; }
+        .toggle-arrow { transition: transform 0.3s ease; }
+        .expanded .toggle-arrow { transform: rotate(180deg); }
+
+        /* BOUTON MISE À JOUR FLOTTANT (MODIFIÉ : BAS DROITE + BLEU) */
+        #updateContainer {
+            position: fixed; bottom: 20px; right: 20px; /* Bas Droite */
+            display: flex; align-items: center; justify-content: flex-end;
+            z-index: 60; gap: 10px;
+        }
+        #refreshBtn {
+            background-color: #004e98; /* Bleu Chantiers Modernes */
+            color: white; border: none; border-radius: 50%;
+            width: 50px; height: 50px; font-size: 24px; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex;
+            justify-content: center; align-items: center; transition: transform 0.2s, background-color 0.2s;
             position: relative;
-            z-index: 20;
         }
+        #refreshBtn:hover { background-color: #003b75; }
+        #refreshBtn:active { transform: scale(0.95); }
+        
+        .update-dot { position: absolute; top: 0; right: 0; width: 12px; height: 12px; background-color: #d92e2e; border-radius: 50%; border: 2px solid white; display: none; }
+        .rotating { animation: spin 1s linear infinite; pointer-events: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        #updateAlert { display: none; align-items: center; }
+        .update-text { color: #004e98; font-weight: bold; font-size: 12px; margin-right: 5px; background: rgba(255,255,255,0.95); padding: 6px 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); white-space: nowrap; }
+        .bouncing { animation: bounceRight 1s ease-in-out infinite; }
+        @keyframes bounceRight { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
 
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 6px;
-            cursor: pointer;
-            border-radius: 3px;
-        }
+        /* POP-UP TUTORIEL */
+        #wn-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); z-index: 10000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(5px); opacity: 0; transition: opacity 0.3s ease; }
+        #wn-modal { background: white; width: 90%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); text-align: center; position: relative; transform: translateY(20px); transition: transform 0.3s ease; }
+        .show-modal { display: flex !important; opacity: 1 !important; }
+        .show-modal #wn-modal { transform: translateY(0) !important; }
+
+        .wn-badge { background-color: #dbeafe; color: #004e98; font-size: 10px; text-transform: uppercase; font-weight: bold; padding: 4px 8px; border-radius: 12px; display: inline-block; margin-bottom: 10px; }
+        .wn-title { font-size: 22px; font-weight: 900; color: #1f2937; margin: 0; }
+        .wn-slides-container { height: 220px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+        .wn-slide { display: none; width: 100%; animation: slideIn 0.4s ease forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        .wn-icon { font-size: 50px; margin-bottom: 15px; display: block; }
+        .wn-slide-title { font-size: 18px; font-weight: bold; color: #004e98; margin-bottom: 10px; display: block; }
+        .wn-desc { font-size: 14px; color: #6b7280; line-height: 1.5; }
+        .wn-dots { display: flex; justify-content: center; gap: 8px; margin: 20px 0; }
+        .wn-dot { width: 8px; height: 8px; background-color: #e5e7eb; border-radius: 50%; transition: background-color 0.3s; }
+        .wn-dot.active { background-color: #004e98; width: 20px; border-radius: 4px; }
+        #wn-btn { background-color: #004e98; color: white; border: none; width: 100%; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        #wn-btn:hover { background-color: #003b75; }
     </style>
 </head>
 <body>
@@ -91,15 +109,10 @@
 
     <script type="text/babel" data-type="module">
         const { useState, useMemo, useEffect, useRef } = React;
-        const { jsPDF } = window.jspdf; // Accès à jsPDF
+        const { jsPDF } = window.jspdf;
 
-        // --- ICONS (SVG inline simple) ---
-        const IconWrapper = ({ size = 24, className, children, ...props }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
-                {children}
-            </svg>
-        );
-
+        // --- ICONS ---
+        const IconWrapper = ({ size = 24, className, children, ...props }) => ( <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg> );
         const Icons = {
             Calculator: (p) => <IconWrapper {...p}><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></IconWrapper>,
             CheckCircle: (p) => <IconWrapper {...p}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconWrapper>,
@@ -114,29 +127,21 @@
             Save: (p) => <IconWrapper {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconWrapper>,
             FileJson: (p) => <IconWrapper {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconWrapper>,
             FileText: (p) => <IconWrapper {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconWrapper>,
-            Globe: (p) => <IconWrapper {...p}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></IconWrapper>,
+            Info: (p) => <IconWrapper {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></IconWrapper>,
             Layers: (p) => <IconWrapper {...p}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></IconWrapper>
         };
 
-        const { Calculator, CheckCircle, Truck, Anchor, Move, Upload, Download, ArrowLeft, Trash2, Database, Save, FileJson, FileText, Globe, Layers } = Icons;
+        const { Calculator, CheckCircle, Truck, Anchor, Move, Upload, Download, ArrowLeft, Trash2, Database, Save, FileJson, FileText, Info, Layers } = Icons;
 
         // --- CONSTANTES ---
-        const DB_KEY = "cmc_levage_machines"; // Clé LocalStorage BDD Locale
-        const SELECTED_CRANE_KEY = "selectedCrane"; // Clé LocalStorage Grue choisie
-        const EXTERNAL_DB_URL = "engines.json"; // URL pour la BDD Externe GitHub (Simulation locale si fichier absent)
+        const DB_KEY = "cmc_levage_machines"; 
+        const SELECTED_CRANE_KEY = "selectedCrane"; 
+        const EXTERNAL_DB_URL = "engines.json";
 
-        // --- DONNÉES STATIQUES (Système) ---
+        // --- DONNÉES STATIQUES ---
         const HARDCODED_MACHINES = [
             {
-                id: "fixed_1",
-                source: "system",
-                category: "telehandler", 
-                name: "Manitou MLT 625-75H",
-                type: "telehandler", 
-                mode: "zone",
-                maxLoad: 2500,
-                maxReach: 3.30, 
-                maxHeight: 5.90,
+                id: "fixed_1", source: "system", category: "telehandler", name: "Manitou MLT 625-75H", type: "telehandler", mode: "zone", maxLoad: 2500, maxReach: 3.30, maxHeight: 5.90,
                 zones: [
                     { id: '2500kg', load: 2500, color: 'rgba(22, 163, 74, 0.4)', borderColor: 'rgba(22, 163, 74, 1)', points: [[0,0], [1.1,0], [1.1,1.5], [0.9,3.0], [0.5,4.5], [0,5.5]] },
                     { id: '2000kg', load: 2000, color: 'rgba(34, 197, 94, 0.3)', borderColor: 'rgba(34, 197, 94, 1)', points: [[1.1,0], [1.7,0], [1.7,1.2], [1.5,3.0], [1.2,5.5], [0.6,5.9], [0,5.9], [0,4.5], [0.5,4.5], [0.9,3.0], [1.1,1.5]] },
@@ -146,33 +151,27 @@
                 ]
             },
             {
-                id: "fixed_2",
-                source: "system",
-                category: "mobile_crane",
-                name: "Liebherr LTM 1050-3.1",
-                type: "crane",
-                mode: "multi_chart",
-                hasCounterweights: true,
-                counterweights: ["9t"],
-                maxLoad: 50000,
-                maxReach: 34,
-                maxHeight: 40,
-                hasTelescoping: true, 
+                id: "fixed_2", source: "system", category: "mobile_crane", name: "Liebherr LTM 1050-3.1", type: "crane", mode: "multi_chart", maxLoad: 50000, maxReach: 34, maxHeight: 40, hasTelescoping: true, 
                 boomLengths: [11.4, 16.7, 22, 27.3, 32.6, 35.8, 38],
                 charts: {
-                    "9t": {                
-                        "11.4": { std: [{d:3, l:50}, {d:4, l:41.3}, {d:5, l:24.1}, {d:6, l:29}, {d:7, l:24.5}, {d:8, l:16.8}], tele: [{d:3, l:42}, {d:4, l:36.5}, {d:5, l:30.6}, {d:6, l:25.5}, {d:7, l:21.5}, {d:8, l:16.8}] },
-                        "16.7": { std: [{d:3, l:24.7}, {d:4, l:26.5}, {d:5, l:27.8}, {d:6, l:26}, {d:7, l:21.8}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}], tele: [{d:3, l:20.2}, {d:4, l:20.2}, {d:5, l:20.2}, {d:6, l:20.2}, {d:7, l:20.2}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}] },
-                        "22": { std: [{d:3, l:24.6}, {d:4, l:25.1}, {d:5, l:24.2}, {d:6, l:22.7}, {d:7, l:21}, {d:8, l:18.6}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}], tele: [{d:3, l:19.1}, {d:4, l:18.9}, {d:5, l:18.8}, {d:6, l:18.7}, {d:7, l:18.6}, {d:8, l:18.2}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}] },
-                        "27.3": { std: [{d:3, l:17}, {d:4, l:16.6}, {d:5, l:16}, {d:6, l:15.3}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}], tele: [{d:3, l:15.8}, {d:4, l:15.5}, {d:5, l:15.2}, {d:6, l:15}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}] },
-                        "32.6": { std: [{d:4, l:11.5}, {d:5, l:11.3}, {d:6, l:11}, {d:7, l:10.7}, {d:8, l:10.2}, {d:9, l:9.7}, {d:10, l:9.2}, {d:11, l:8.6}, {d:12, l:8}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}], tele: [{d:4, l:10.7}, {d:5, l:10.3}, {d:6, l:10}, {d:7, l:9.7}, {d:8, l:9.4}, {d:9, l:9.2}, {d:10, l:8.8}, {d:11, l:8.1}, {d:12, l:7.9}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}] },
-                        "35.8": { std: [{d:5, l:9.5}, {d:6, l:9.4}, {d:7, l:9.2}, {d:8, l:8.9}, {d:9, l:8.5}, {d:10, l:8.1}, {d:11, l:7.7}, {d:12, l:7.3}, {d:14, l:6.7}, {d:16, l:6.1}, {d:18, l:5.4}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}], tele: [{d:5, l:6.9}, {d:6, l:6.6}, {d:7, l:6.3}, {d:8, l:6.1}, {d:9, l:5.8}, {d:10, l:5.6}, {d:11, l:5.4}, {d:12, l:5.2}, {d:14, l:4.9}, {d:16, l:4.6}, {d:18, l:4}, {d:20, l:3.7}, {d:22, l:3.2}, {d:24, l:2.4}, {d:26, l:1.8}, {d:28, l:1.4}, {d:30, l:1}] },
-                        "38": { std: [{d:6, l:7.5}, {d:7, l:7.2}, {d:8, l:7}, {d:9, l:6.7}, {d:10, l:6.5}, {d:11, l:6.2}, {d:12, l:6}, {d:14, l:5.6}, {d:16, l:5.2}, {d:18, l:4.8}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.2}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}, {d:34, l:1.4}], tele: [{d:6, l:3.7}, {d:7, l:3.5}, {d:8, l:3.3}, {d:9, l:3.2}, {d:10, l:3}, {d:11, l:2.8}, {d:12, l:2.7}, {d:14, l:2.5}, {d:16, l:2.3}, {d:18, l:1.7}, {d:20, l:1.3}, {d:22, l:0.9}] }
-                    }
-                        
+                "11.4": { std: [{d:3, l:50}, {d:4, l:41.3}, {d:5, l:24.1}, {d:6, l:29}, {d:7, l:24.5}, {d:8, l:16.8}], tele: [{d:3, l:42}, {d:4, l:36.5}, {d:5, l:30.6}, {d:6, l:25.5}, {d:7, l:21.5}, {d:8, l:16.8}] },
+                "16.7": { std: [{d:3, l:24.7}, {d:4, l:26.5}, {d:5, l:27.8}, {d:6, l:26}, {d:7, l:21.8}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}], tele: [{d:3, l:20.2}, {d:4, l:20.2}, {d:5, l:20.2}, {d:6, l:20.2}, {d:7, l:20.2}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}] },
+                "22": { std: [{d:3, l:24.6}, {d:4, l:25.1}, {d:5, l:24.2}, {d:6, l:22.7}, {d:7, l:21}, {d:8, l:18.6}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}], tele: [{d:3, l:19.1}, {d:4, l:18.9}, {d:5, l:18.8}, {d:6, l:18.7}, {d:7, l:18.6}, {d:8, l:18.2}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}] },
+                "27.3": { std: [{d:3, l:17}, {d:4, l:16.6}, {d:5, l:16}, {d:6, l:15.3}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}], tele: [{d:3, l:15.8}, {d:4, l:15.5}, {d:5, l:15.2}, {d:6, l:15}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}] },
+                "32.6": { std: [{d:4, l:11.5}, {d:5, l:11.3}, {d:6, l:11}, {d:7, l:10.7}, {d:8, l:10.2}, {d:9, l:9.7}, {d:10, l:9.2}, {d:11, l:8.6}, {d:12, l:8}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}], tele: [{d:4, l:10.7}, {d:5, l:10.3}, {d:6, l:10}, {d:7, l:9.7}, {d:8, l:9.4}, {d:9, l:9.2}, {d:10, l:8.8}, {d:11, l:8.1}, {d:12, l:7.9}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}] },
+                "35.8": { std: [{d:5, l:9.5}, {d:6, l:9.4}, {d:7, l:9.2}, {d:8, l:8.9}, {d:9, l:8.5}, {d:10, l:8.1}, {d:11, l:7.7}, {d:12, l:7.3}, {d:14, l:6.7}, {d:16, l:6.1}, {d:18, l:5.4}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}], tele: [{d:5, l:6.9}, {d:6, l:6.6}, {d:7, l:6.3}, {d:8, l:6.1}, {d:9, l:5.8}, {d:10, l:5.6}, {d:11, l:5.4}, {d:12, l:5.2}, {d:14, l:4.9}, {d:16, l:4.6}, {d:18, l:4}, {d:20, l:3.7}, {d:22, l:3.2}, {d:24, l:2.4}, {d:26, l:1.8}, {d:28, l:1.4}, {d:30, l:1}] },
+                "38": { std: [{d:6, l:7.5}, {d:7, l:7.2}, {d:8, l:7}, {d:9, l:6.7}, {d:10, l:6.5}, {d:11, l:6.2}, {d:12, l:6}, {d:14, l:5.6}, {d:16, l:5.2}, {d:18, l:4.8}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.2}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}, {d:34, l:1.4}], tele: [{d:6, l:3.7}, {d:7, l:3.5}, {d:8, l:3.3}, {d:9, l:3.2}, {d:10, l:3}, {d:11, l:2.8}, {d:12, l:2.7}, {d:14, l:2.5}, {d:16, l:2.3}, {d:18, l:1.7}, {d:20, l:1.3}, {d:22, l:0.9}] }
                 }
-
             },
+            {
+                id: "fixed_3", source: "system", category: "mobile_crane", name: "Liebherr LTM 1130-5.1 (Vario)", type: "crane", mode: "multi_chart", hasCounterweights: true, counterweights: ["0t", "14t", "29t", "42t"], maxLoad: 130000, maxReach: 60, maxHeight: 65, boomLengths: [12.7, 30.1, 60],
+                charts: {
+                    "42t": { "12.7": { std: [{d:3, l:130}, {d:9, l:65}, {d:12, l:50}] }, "30.1": { std: [{d:5, l:70}, {d:15, l:40}, {d:25, l:20}] }, "60": { std: [{d:10, l:20}, {d:30, l:10}, {d:50, l:2}] } },
+                    "29t": { "12.7": { std: [{d:3, l:130}, {d:9, l:60}, {d:12, l:42}] }, "30.1": { std: [{d:5, l:68}, {d:15, l:35}, {d:25, l:15}] }, "60": { std: [{d:10, l:18}, {d:30, l:8}, {d:50, l:1.5}] } },
+                    "14t": { "12.7": { std: [{d:3, l:130}, {d:9, l:50}, {d:12, l:35}] }, "30.1": { std: [{d:5, l:65}, {d:15, l:25}, {d:25, l:10}] }, "60": { std: [{d:10, l:15}, {d:30, l:5}, {d:50, l:0.5}] } },
+                    "0t": { "12.7": { std: [{d:3, l:100}, {d:9, l:30}, {d:12, l:15}] }, "30.1": { std: [{d:5, l:40}, {d:15, l:10}, {d:25, l:5}] }, "60": { std: [{d:10, l:5}, {d:30, l:1}, {d:50, l:0}] } }
+                }
+            }
         ];
 
         // --- UTILITAIRES ---
@@ -189,8 +188,6 @@
 
         const calculateMachineCapacity = (machine, dist, height, specificBoom = null, specificCwt = null) => {
             if (!machine) return 0;
-            
-            // 1. Vérif Enveloppe
             if (dist > machine.maxReach || height > machine.maxHeight) return 0;
 
             if (machine.mode === 'multi_chart') {
@@ -199,15 +196,12 @@
                     if (reqReachSq > (boomLen * boomLen) + 0.1) return 0;
                     
                     let points;
-                    if (machine.hasCounterweights && cwt) {
-                         points = machine.charts[cwt]?.[boomLen]?.std;
-                    } else {
-                         points = machine.charts[boomLen]?.std;
-                    }
+                    if (machine.hasCounterweights && cwt) { points = machine.charts[cwt]?.[boomLen]?.std; } 
+                    else { points = machine.charts[boomLen]?.std; }
                     
                     if (!points || points.length === 0) return 0;
                     if (dist > points[points.length - 1].d) return 0;
-                    if (dist < points[0].d) return 0; // Correction : Retourner 0 si rayon < rayon min (Hors abaque)
+                    if (dist < points[0].d) return 0; // CORRECTION V10.1 (Pas de capacité hors abaque min)
 
                     for (let i = 0; i < points.length - 1; i++) {
                         const p1 = points[i];
@@ -221,23 +215,16 @@
                     return 0;
                 }
 
-                if (specificBoom) {
-                    return checkBoom(specificBoom, specificCwt);
-                } else {
-                    // Recherche de la meilleure capacité (sur toutes les flèches)
-                    // Si machine à contre-poids, on doit savoir lequel utiliser.
-                    // Pour "Déterminer", on cherche la meilleure config possible.
+                if (specificBoom) { return checkBoom(specificBoom, specificCwt); } 
+                else {
                     let maxCap = 0;
-                    
                     const cwtsToCheck = machine.hasCounterweights ? machine.counterweights : [null];
-                    
                     cwtsToCheck.forEach(cwt => {
                          machine.boomLengths.forEach(len => {
                             const cap = checkBoom(len, cwt);
                             if (cap > maxCap) maxCap = cap;
                         });
                     });
-                    
                     return maxCap;
                 }
             }
@@ -270,15 +257,9 @@
                  const boomLengths = machine.boomLengths;
                  const header = ["Portée (m)", ...boomLengths.map(b => `Flèche ${b}m`)];
                  ws_data.push(header);
-
                  let allRadii = new Set();
-                 boomLengths.forEach(len => {
-                     if (chartData[len]?.std) {
-                         chartData[len].std.forEach(p => allRadii.add(p.d));
-                     }
-                 });
+                 boomLengths.forEach(len => { if (chartData[len]?.std) { chartData[len].std.forEach(p => allRadii.add(p.d)); } });
                  const sortedRadii = Array.from(allRadii).sort((a,b) => a - b);
-
                  sortedRadii.forEach(r => {
                      let row = [r];
                      boomLengths.forEach(len => {
@@ -293,104 +274,50 @@
             };
 
             if (machine.mode === 'multi_chart') {
-                if(machine.hasCounterweights) {
-                    machine.counterweights.forEach(cwt => {
-                        createSheetForData(machine.charts[cwt], cwt);
-                    });
-                } else {
-                    createSheetForData(machine.charts, "Abaque");
-                }
+                if(machine.hasCounterweights) { machine.counterweights.forEach(cwt => { createSheetForData(machine.charts[cwt], cwt); }); } 
+                else { createSheetForData(machine.charts, "Abaque"); }
             } else if (machine.mode === 'zone') {
                 let ws_data = [["Zone ID", "Charge Max (kg)"]];
-                machine.zones.forEach(z => {
-                    ws_data.push([z.id, z.load]);
-                });
+                machine.zones.forEach(z => { ws_data.push([z.id, z.load]); });
                 const ws = XLSX.utils.aoa_to_sheet(ws_data);
                 XLSX.utils.book_append_sheet(wb, ws, "Zones");
             }
-
             XLSX.writeFile(wb, `${machine.name}_abaque_${formatDateTime()}.xlsx`);
         };
 
         const generateAdequacyPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt) => {
             if (!machine) return;
             const doc = new jsPDF();
-            
-            doc.setFillColor(0, 78, 152); 
-            doc.rect(0, 0, 210, 25, 'F');
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(16);
-            doc.setFont("helvetica", "bold");
+            doc.setFillColor(0, 78, 152); doc.rect(0, 0, 210, 25, 'F');
+            doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont("helvetica", "bold");
             doc.text("ADÉQUATION DE LEVAGE", 105, 12, { align: "center" });
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10); doc.setFont("helvetica", "normal");
             doc.text("Généré le : " + new Date().toLocaleString(), 105, 19, { align: "center" });
 
             let y = 40;
-
-            doc.setTextColor(0, 0, 0);
-            doc.setFontSize(12);
-            doc.setFont("helvetica", "bold");
-            doc.text("1. PARAMÈTRES DE LA CHARGE", 14, y);
-            y += 8;
-            doc.autoTable({
-                startY: y,
-                head: [['Masse à lever', 'Portée (Rayon)', 'Hauteur']],
-                body: [[`${inputLoad} kg`, `${inputDist} m`, `${inputHeight} m`]],
-                theme: 'striped',
-                headStyles: { fillColor: [0, 78, 152] }
-            });
+            doc.setTextColor(0, 0, 0); doc.setFontSize(12); doc.setFont("helvetica", "bold");
+            doc.text("1. PARAMÈTRES DE LA CHARGE", 14, y); y += 8;
+            doc.autoTable({ startY: y, head: [['Masse à lever', 'Portée (Rayon)', 'Hauteur']], body: [[`${inputLoad} kg`, `${inputDist} m`, `${inputHeight} m`]], theme: 'striped', headStyles: { fillColor: [0, 78, 152] } });
             y = doc.lastAutoTable.finalY + 15;
 
-            doc.setFontSize(12);
-            doc.setFont("helvetica", "bold");
-            doc.text("2. ENGIN SÉLECTIONNÉ", 14, y);
-            y += 8;
-            
+            doc.setFontSize(12); doc.setFont("helvetica", "bold");
+            doc.text("2. ENGIN SÉLECTIONNÉ", 14, y); y += 8;
             let configDetails = "";
-            if(machine.hasCounterweights && currentCwt) {
-                configDetails = `Contrepoids: ${currentCwt}`;
-            }
-
-            doc.autoTable({
-                startY: y,
-                head: [['Modèle', 'Type', 'Config', 'Source']],
-                body: [[machine.name, machine.category, configDetails || "Standard", machine.source === 'external' ? 'Externe' : (machine.source === 'system' ? 'Système' : 'Locale')]],
-                theme: 'grid',
-                headStyles: { fillColor: [100, 100, 100] }
-            });
+            if(machine.hasCounterweights && currentCwt) { configDetails = `Contrepoids: ${currentCwt}`; }
+            doc.autoTable({ startY: y, head: [['Modèle', 'Type', 'Config', 'Source']], body: [[machine.name, machine.category, configDetails || "Standard", machine.source === 'external' ? 'Externe' : (machine.source === 'system' ? 'Système' : 'Locale')]], theme: 'grid', headStyles: { fillColor: [100, 100, 100] } });
             y = doc.lastAutoTable.finalY + 15;
 
-            doc.text("3. RÉSULTAT DU CALCUL", 14, y);
-            y += 8;
+            doc.text("3. RÉSULTAT DU CALCUL", 14, y); y += 8;
             const status = isSafe ? "CONFORME / AUTORISÉ" : "NON CONFORME / INTERDIT";
             const color = isSafe ? [22, 163, 74] : [220, 38, 38];
-            
-            doc.autoTable({
-                startY: y,
-                head: [['Statut', 'Capacité à cette portée', 'Taux d\'utilisation']],
-                body: [[status, `${safeLoad} kg`, `${Math.round((inputLoad/safeLoad)*100)} %`]],
-                headStyles: { fillColor: color },
-                styles: { fontSize: 12, fontStyle: 'bold' }
-            });
+            doc.autoTable({ startY: y, head: [['Statut', 'Capacité à cette portée', 'Taux d\'utilisation']], body: [[status, `${safeLoad} kg`, `${Math.round((inputLoad/safeLoad)*100)} %`]], headStyles: { fillColor: color }, styles: { fontSize: 12, fontStyle: 'bold' } });
             y = doc.lastAutoTable.finalY + 15;
 
-            doc.text("4. CONCLUSION", 14, y);
-            y += 10;
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(10);
-            
-            const text = isSafe 
-                ? "L'adéquation est VALIDÉE. L'engin sélectionné dispose de la capacité nécessaire pour effectuer la manœuvre en sécurité."
-                : "L'adéquation est REFUSÉE. L'engin ne dispose pas de la capacité suffisante ou la configuration est hors abaque.";
-            
-            doc.text(doc.splitTextToSize(text, 180), 14, y);
-            y += 30;
-
-            doc.line(14, y, 196, y);
-            y += 10;
-            doc.text("Signature :", 14, y);
-
+            doc.text("4. CONCLUSION", 14, y); y += 10;
+            doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+            const text = isSafe ? "L'adéquation est VALIDÉE. L'engin sélectionné dispose de la capacité nécessaire pour effectuer la manœuvre en sécurité." : "L'adéquation est REFUSÉE. L'engin ne dispose pas de la capacité suffisante ou la configuration est hors abaque.";
+            doc.text(doc.splitTextToSize(text, 180), 14, y); y += 30;
+            doc.line(14, y, 196, y); y += 10; doc.text("Signature :", 14, y);
             doc.save(`${machine.name}_adequation_levage_${formatDateTime()}.pdf`);
         };
 
@@ -408,11 +335,9 @@
             </svg>
         );
 
-        // --- COMPOSANT SLIDER ---
         const CustomRange = ({ label, value, min, max, step, onChange, unit = "", maxLabel = "" }) => {
             const range = max - min;
             const percentage = range > 0 ? ((value - min) / range) * 100 : 0;
-            
             return (
                 <div className="w-full">
                     <div className="flex justify-between items-end mb-2">
@@ -434,31 +359,16 @@
             );
         };
 
-        // --- MODAL GESTION BDD LOCALE ---
         const DbManagerModal = ({ machines, onClose, onDelete, onReset, onImport }) => {
             const downloadJson = () => {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(machines));
-                const downloadAnchorNode = document.createElement('a');
-                downloadAnchorNode.setAttribute("href", dataStr);
-                downloadAnchorNode.setAttribute("download", "cmc_levage_backup.json");
-                document.body.appendChild(downloadAnchorNode);
-                downloadAnchorNode.click();
-                downloadAnchorNode.remove();
+                const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "cmc_levage_backup.json"); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
             };
-
             const handleFileImport = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
+                const file = e.target.files[0]; if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (evt) => {
-                    try {
-                        const imported = JSON.parse(evt.target.result);
-                        if (Array.isArray(imported)) {
-                            onImport(imported);
-                        } else {
-                            alert("Format JSON invalide.");
-                        }
-                    } catch (err) { alert("Erreur lecture fichier."); }
+                    try { const imported = JSON.parse(evt.target.result); if (Array.isArray(imported)) { onImport(imported); } else { alert("Format JSON invalide."); } } catch (err) { alert("Erreur lecture fichier."); }
                 };
                 reader.readAsText(file);
             };
@@ -470,7 +380,6 @@
                             <h3 className="text-xl font-bold flex items-center gap-2"><Database className="text-[#004e98]"/> Gestion Base de Données Locale</h3>
                             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-xl">&times;</button>
                         </div>
-
                         <div className="grid grid-cols-2 gap-4 mb-6">
                             <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-blue-100 transition" onClick={downloadJson}>
                                 <Save size={32} className="text-blue-600 mb-2"/>
@@ -484,25 +393,18 @@
                                 <input type="file" className="hidden" accept=".json" onChange={handleFileImport} />
                             </label>
                         </div>
-
                         <div className="mb-4">
                             <h4 className="font-bold text-slate-700 mb-2">Machines Locales ({machines.length})</h4>
                             <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg">
-                                {machines.length === 0 ? (
-                                    <div className="p-4 text-center text-slate-400 italic">Aucune machine personnalisée.</div>
-                                ) : (
+                                {machines.length === 0 ? ( <div className="p-4 text-center text-slate-400 italic">Aucune machine personnalisée.</div> ) : (
                                     <table className="w-full text-sm text-left">
-                                        <thead className="bg-slate-50 text-slate-500 font-bold sticky top-0">
-                                            <tr><th className="p-3">Nom</th><th className="p-3">Type</th><th className="p-3 text-right">Action</th></tr>
-                                        </thead>
+                                        <thead className="bg-slate-50 text-slate-500 font-bold sticky top-0"><tr><th className="p-3">Nom</th><th className="p-3">Type</th><th className="p-3 text-right">Action</th></tr></thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {machines.map(m => (
                                                 <tr key={m.id} className="hover:bg-slate-50">
                                                     <td className="p-3 font-medium text-slate-700">{m.name}</td>
                                                     <td className="p-3 text-slate-500">{m.category}</td>
-                                                    <td className="p-3 text-right">
-                                                        <button onClick={() => onDelete(m.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button>
-                                                    </td>
+                                                    <td className="p-3 text-right"><button onClick={() => onDelete(m.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button></td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -510,7 +412,6 @@
                                 )}
                             </div>
                         </div>
-
                         <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                             <button onClick={onReset} className="px-4 py-2 text-red-600 text-sm font-bold hover:bg-red-50 rounded-lg transition">Tout effacer</button>
                             <button onClick={onClose} className="px-6 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 transition">Fermer</button>
@@ -520,94 +421,59 @@
             );
         };
 
-        // --- HEADER ---
         const Header = ({ goHome }) => (
-            <header className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-50 shadow-sm">
+            <header className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-40 shadow-sm">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div onClick={goHome} className="hover:opacity-80 transition-opacity"><CMCLogo /></div>
-                    <div className="hidden md:flex items-center gap-2 text-xs text-emerald-700 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
-                        <Layers size={14} /> V10.1 Multi-Config
+                    <div onClick={goHome} className="hover:opacity-80 transition-opacity cursor-pointer"><CMCLogo /></div>
+                    <div className="flex items-center gap-4">
+                        {/* BOUTON INFO INTÉGRÉ DANS LE HEADER */}
+                        <button onClick={() => window.openInfoModal()} className="text-[#004e98] text-2xl font-bold hover:opacity-80 transition p-2">
+                            <Info size={28} />
+                        </button>
+                        <div className="hidden md:flex items-center gap-2 text-xs text-emerald-700 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                            <Layers size={14} /> V10.3
+                        </div>
                     </div>
                 </div>
             </header>
         );
 
-        // --- PAGE ACCUEIL ---
         const HomePage = ({ navigate }) => (
             <div className="flex flex-col items-center justify-center min-h-[80vh] bg-slate-50 p-6 animate-fade-in">
                 <div className="max-w-4xl w-full text-center space-y-12">
                     <div className="animate-slide-up" style={{animationDelay: '0.1s'}}>
-                        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-800 leading-tight">
-                            Bienvenue sur le portail <br/>
-                            <span className="text-[#004e98]">Levage Sécurisé</span>
-                        </h1>
+                        <h1 className="text-4xl md:text-5xl font-extrabold text-slate-800 leading-tight">Bienvenue sur le portail <br/><span className="text-[#004e98]">Levage Sécurisé</span></h1>
                     </div>
-                    
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10 max-w-4xl mx-auto">
                         <button onClick={() => navigate('determine')} className="animate-slide-up group relative h-64 rounded-xl bg-[#004e98] text-white p-8 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center gap-6" style={{animationDelay: '0.2s'}}>
                             <div className="p-4 bg-white/20 rounded-full group-hover:scale-110 transition-transform duration-300 backdrop-blur-sm"><Calculator size={48} /></div>
-                            <div>
-                                <span className="block text-2xl font-bold mb-2">Déterminer</span>
-                                <span className="text-blue-100 text-lg font-light">le bon engin de levage</span>
-                            </div>
+                            <div><span className="block text-2xl font-bold mb-2">Déterminer</span><span className="text-blue-100 text-lg font-light">le bon engin de levage</span></div>
                         </button>
-                        
                         <button onClick={() => navigate('verify')} className="animate-slide-up group relative h-64 rounded-xl bg-[#004e98] text-white p-8 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center gap-6" style={{animationDelay: '0.3s'}}>
                             <div className="p-4 bg-white/20 rounded-full group-hover:scale-110 transition-transform duration-300 backdrop-blur-sm"><CheckCircle size={48} /></div>
-                            <div>
-                                <span className="block text-2xl font-bold mb-2">Vérifier</span>
-                                <span className="text-blue-100 text-lg font-light">mon engin de levage</span>
-                            </div>
+                            <div><span className="block text-2xl font-bold mb-2">Vérifier</span><span className="text-blue-100 text-lg font-light">mon engin de levage</span></div>
                         </button>
                     </div>
                 </div>
             </div>
         );
 
-        // --- PAGE CALCUL RAPIDE (DETERMINE) ---
         const DeterminePage = ({ allMachines }) => {
-            const [mass, setMass] = useState(0);
-            const [unit, setUnit] = useState('kg');
-            const [distance, setDistance] = useState(0);
-            const [height, setHeight] = useState(5);
-            // NOUVEAU : Slider pourcentage
+            const [mass, setMass] = useState(0); const [unit, setUnit] = useState('kg');
+            const [distance, setDistance] = useState(0); const [height, setHeight] = useState(5);
             const [maxUsagePercent, setMaxUsagePercent] = useState(80);
-            
-            const [progress, setProgress] = useState(0);
-            const [result, setResult] = useState(null);
-            const [suggestedCrane, setSuggestedCrane] = useState(null);
+            const [progress, setProgress] = useState(0); const [result, setResult] = useState(null); const [suggestedCrane, setSuggestedCrane] = useState(null);
 
-            // LOGIQUE DE RECHERCHE AUTO
             const performAutoSelect = (targetMassKg, targetDist, targetHeight) => {
                 const candidates = [];
-
                 allMachines.forEach(m => {
-                    // Pour les machines à contrepoids, on doit tester si AU MOINS UNE config marche
-                    // Et idéalement renvoyer la config minimale.
-                    // Ici on simplifie : on vérifie si la machine est capable dans sa config max ou n'importe laquelle.
-                    // La fonction calculateMachineCapacity en mode 'auto' (sans args spécifiques) renvoie le max absolu.
-                    
                     const cap = calculateMachineCapacity(m, targetDist, targetHeight);
-                    
-                    // Calcul du taux d'utilisation pour cette capacité
                     const usage = cap > 0 ? (targetMassKg / cap) * 100 : 999;
-                    
-                    if (cap >= targetMassKg && usage <= maxUsagePercent) {
-                        candidates.push({ machine: m, capacity: cap, excess: cap - targetMassKg, usage: usage });
-                    }
+                    if (cap >= targetMassKg && usage <= maxUsagePercent) { candidates.push({ machine: m, capacity: cap, excess: cap - targetMassKg, usage: usage }); }
                 });
-
-                // Trier pour trouver le "meilleur" choix (capacité suffisante mais la plus petite possible)
                 candidates.sort((a, b) => a.capacity - b.capacity);
-
-                if (candidates.length > 0) {
-                    const best = candidates[0].machine;
-                    setSuggestedCrane(best);
-                    localStorage.setItem(SELECTED_CRANE_KEY, JSON.stringify(best));
-                } else {
-                    setSuggestedCrane(null);
-                    localStorage.removeItem(SELECTED_CRANE_KEY);
-                }
+                if (candidates.length > 0) { const best = candidates[0].machine; setSuggestedCrane(best); localStorage.setItem(SELECTED_CRANE_KEY, JSON.stringify(best)); } 
+                else { setSuggestedCrane(null); localStorage.removeItem(SELECTED_CRANE_KEY); }
             };
 
             useEffect(() => {
@@ -615,21 +481,9 @@
                     setProgress(0); setResult(null); setSuggestedCrane(null);
                     const interval = setInterval(() => {
                         setProgress(p => {
-                            if (p >= 100) {
-                                clearInterval(interval);
-                                const massInTons = unit === 'kg' ? mass / 1000 : mass;
-                                const massKg = unit === 'kg' ? mass : mass * 1000;
-                                const moment = massInTons * distance;
-                                setResult({ tons: massInTons, moment: moment.toFixed(1) });
-                                
-                                performAutoSelect(massKg, distance, height);
-                                
-                                return 100;
-                            }
-                            return p + 4;
+                            if (p >= 100) { clearInterval(interval); const massInTons = unit === 'kg' ? mass / 1000 : mass; const massKg = unit === 'kg' ? mass : mass * 1000; const moment = massInTons * distance; setResult({ tons: massInTons, moment: moment.toFixed(1) }); performAutoSelect(massKg, distance, height); return 100; } return p + 4;
                         });
-                    }, 20);
-                    return () => clearInterval(interval);
+                    }, 20); return () => clearInterval(interval);
                 } else { setResult(null); setProgress(0); setSuggestedCrane(null); }
             }, [mass, unit, distance, height, maxUsagePercent, allMachines]); 
 
@@ -639,108 +493,43 @@
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                             <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator className="text-brand-blue"/> Paramètres de la charge</h2>
                             <div className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-600 mb-2">Masse à soulever</label>
-                                    <div className="flex gap-2">
-                                        <input type="number" value={mass || ''} onChange={(e) => setMass(parseFloat(e.target.value))} className="flex-1 p-3 text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-blue outline-none transition-shadow" placeholder="0"/>
-                                        <select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-24 p-3 text-lg font-bold bg-slate-50 border border-slate-300 rounded-lg text-slate-700 cursor-pointer hover:bg-slate-100"><option value="kg">kg</option><option value="t">t</option></select>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-600 mb-2">Portée (m)</label>
-                                    <div className="relative">
-                                        <input type="number" value={distance || ''} onChange={(e) => setDistance(parseFloat(e.target.value))} className="w-full p-3 text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-blue outline-none transition-shadow pl-4 pr-12" placeholder="0"/>
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">m</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-600 mb-2">Hauteur (m)</label>
-                                    <div className="relative">
-                                        <input type="number" value={height || ''} onChange={(e) => setHeight(parseFloat(e.target.value))} className="w-full p-3 text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-blue outline-none transition-shadow pl-4 pr-12" placeholder="0"/>
-                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">m</span>
-                                    </div>
-                                </div>
+                                <div><label className="block text-sm font-semibold text-slate-600 mb-2">Masse</label><div className="flex gap-2"><input type="number" value={mass || ''} onChange={(e) => setMass(parseFloat(e.target.value))} className="flex-1 p-3 text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-blue outline-none" placeholder="0"/><select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-24 p-3 text-lg font-bold bg-slate-50 border border-slate-300 rounded-lg"><option value="kg">kg</option><option value="t">t</option></select></div></div>
+                                <div><label className="block text-sm font-semibold text-slate-600 mb-2">Portée (m)</label><div className="relative"><input type="number" value={distance || ''} onChange={(e) => setDistance(parseFloat(e.target.value))} className="w-full p-3 text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-blue outline-none pl-4 pr-12" placeholder="0"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">m</span></div></div>
+                                <div><label className="block text-sm font-semibold text-slate-600 mb-2">Hauteur (m)</label><div className="relative"><input type="number" value={height || ''} onChange={(e) => setHeight(parseFloat(e.target.value))} className="w-full p-3 text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-blue outline-none pl-4 pr-12" placeholder="0"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">m</span></div></div>
                             </div>
                         </div>
-
-                        {/* NOUVEAU BLOC POUR LE SLIDER */}
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                              <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-brand-blue"/> Critère de sécurité</h2>
-                             <CustomRange 
-                                label="Taux d'utilisation max" 
-                                value={maxUsagePercent} 
-                                min={70} 
-                                max={98} 
-                                step={1} 
-                                unit="%" 
-                                onChange={(e) => setMaxUsagePercent(parseInt(e.target.value))}
-                                maxLabel="Max : 98%"
-                            />
-                            <p className="text-xs text-slate-500 mt-2 italic">L'algorithme ne proposera que des engins utilisés à moins de {maxUsagePercent}% de leur capacité pour cette charge.</p>
+                             <CustomRange label="Taux d'utilisation max" value={maxUsagePercent} min={70} max={98} step={1} unit="%" onChange={(e) => setMaxUsagePercent(parseInt(e.target.value))} maxLabel="Max : 98%"/>
+                            <p className="text-xs text-slate-500 mt-2 italic">L'algorithme ne proposera que des engins utilisés à moins de {maxUsagePercent}% de leur capacité.</p>
                         </div>
                     </div>
-
                     <div className="flex flex-col gap-6">
                         <div className="flex flex-col items-center justify-center p-8 bg-white rounded-2xl shadow-lg border border-slate-100 min-h-[300px]">
                             {!result ? (
-                                <div className="relative w-56 h-56">
-                                    <svg className="w-full h-full transform -rotate-90">
-                                        <circle cx="112" cy="112" r="100" stroke="#f1f5f9" strokeWidth="12" fill="transparent" />
-                                        <circle cx="112" cy="112" r="100" stroke="#004e98" strokeWidth="12" fill="transparent" strokeDasharray={2 * Math.PI * 100} strokeDashoffset={2 * Math.PI * 100 - (progress / 100) * 2 * Math.PI * 100} className="transition-all duration-100 ease-linear" strokeLinecap="round"/>
-                                    </svg>
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                        <span className="text-4xl font-bold text-slate-800">{progress}%</span>
-                                        <span className="text-xs text-slate-400 uppercase tracking-widest mt-1">Calcul</span>
-                                    </div>
-                                </div>
+                                <div className="relative w-56 h-56"><svg className="w-full h-full transform -rotate-90"><circle cx="112" cy="112" r="100" stroke="#f1f5f9" strokeWidth="12" fill="transparent" /><circle cx="112" cy="112" r="100" stroke="#004e98" strokeWidth="12" fill="transparent" strokeDasharray={2 * Math.PI * 100} strokeDashoffset={2 * Math.PI * 100 - (progress / 100) * 2 * Math.PI * 100} className="transition-all duration-100 ease-linear" strokeLinecap="round"/></svg><div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-4xl font-bold text-slate-800">{progress}%</span><span className="text-xs text-slate-400 uppercase tracking-widest mt-1">Calcul</span></div></div>
                             ) : (
                                 <div className="text-center w-full animate-slide-up">
-                                    <div className="w-full bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-2xl p-8 mb-6 shadow-lg">
-                                        <div className="text-blue-100 text-sm uppercase tracking-wide font-bold mb-2">Besoin Identifié</div>
-                                        <div className="text-5xl font-extrabold mb-1">{result.tons} <span className="text-2xl opacity-80">t</span></div>
-                                        <div className="text-xl opacity-90">à {distance} mètres</div>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                            <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Moment de charge</div>
-                                            <div className="text-3xl font-bold text-slate-800">{result.moment} <span className="text-sm text-slate-500 font-normal">t.m</span></div>
-                                        </div>
-                                    </div>
+                                    <div className="w-full bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-2xl p-8 mb-6 shadow-lg"><div className="text-blue-100 text-sm uppercase tracking-wide font-bold mb-2">Besoin Identifié</div><div className="text-5xl font-extrabold mb-1">{result.tons} <span className="text-2xl opacity-80">t</span></div><div className="text-xl opacity-90">à {distance} mètres</div></div>
+                                    <div className="grid grid-cols-1 gap-4"><div className="bg-slate-50 p-4 rounded-xl border border-slate-200"><div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Moment de charge</div><div className="text-3xl font-bold text-slate-800">{result.moment} <span className="text-sm text-slate-500 font-normal">t.m</span></div></div></div>
                                 </div>
                             )}
                         </div>
-
-                        {/* RESULTAT AUTO */}
                         {result && (
                             <div className="animate-slide-up bg-slate-50 border border-slate-300 rounded-xl p-6">
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2"><CheckCircle size={16}/> Recommandation Auto</h3>
                                 {suggestedCrane ? (
                                     <div className="bg-white border border-green-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
                                         <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] px-2 py-1 font-bold rounded-bl-lg">RECOMMANDÉ</div>
-                                        <div className="absolute bottom-2 right-2 text-[10px] text-slate-400 px-2 py-1 bg-slate-100 rounded">
-                                            Source: {suggestedCrane.source === 'external' ? 'BDD Externe' : (suggestedCrane.source === 'system' ? 'Système' : 'Locale')}
-                                        </div>
+                                        <div className="absolute bottom-2 right-2 text-[10px] text-slate-400 px-2 py-1 bg-slate-100 rounded">Source: {suggestedCrane.source === 'external' ? 'BDD Externe' : (suggestedCrane.source === 'system' ? 'Système' : 'Locale')}</div>
                                         <h4 className="text-lg font-bold text-slate-800 mb-1">{suggestedCrane.name}</h4>
                                         <p className="text-sm text-slate-500 mb-4">{suggestedCrane.category} • Max {suggestedCrane.maxLoad}kg</p>
-                                        
                                         <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => exportCraneExcel(suggestedCrane)}
-                                                className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded border border-green-200 flex items-center justify-center gap-1 transition-colors">
-                                                <FileText size={14}/> Abaque Excel
-                                            </button>
-                                            <button 
-                                                onClick={() => generateAdequacyPDF(suggestedCrane, (unit==='kg'?mass:mass*1000), distance, height, true, calculateMachineCapacity(suggestedCrane, distance, height))}
-                                                className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-3 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors">
-                                                <FileText size={14}/> PDF Adéquation
-                                            </button>
+                                            <button onClick={() => exportCraneExcel(suggestedCrane)} className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded border border-green-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque Excel</button>
+                                            <button onClick={() => generateAdequacyPDF(suggestedCrane, (unit==='kg'?mass:mass*1000), distance, height, true, calculateMachineCapacity(suggestedCrane, distance, height))} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-3 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> PDF Adéquation</button>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="text-center p-4 text-slate-500 italic text-sm">
-                                        Aucun engin trouvé pour cette configuration (limite {maxUsagePercent}%).
-                                    </div>
-                                )}
+                                ) : ( <div className="text-center p-4 text-slate-500 italic text-sm">Aucun engin trouvé pour cette configuration (limite {maxUsagePercent}%).</div> )}
                             </div>
                         )}
                     </div>
@@ -748,330 +537,117 @@
             );
         };
 
-        // --- PAGE VERIFICATION ---
         const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onImportLocal }) => {
             const [showDbManager, setShowDbManager] = useState(false);
             const localMachinesOnly = useMemo(() => allMachines.filter(m => m.source === 'local'), [allMachines]);
-
             const [category, setCategory] = useState('telehandler');
             const [selectedMachineId, setSelectedMachineId] = useState(null);
-            const [inputLoad, setInputLoad] = useState(1000); 
-            const [inputDist, setInputDist] = useState(5);    
-            const [inputHeight, setInputHeight] = useState(2);
-            const [selectedBoomLen, setSelectedBoomLen] = useState(0);
-            const [selectedCwt, setSelectedCwt] = useState(null); // NOUVEAU : State Contrepoids
+            const [inputLoad, setInputLoad] = useState(1000); const [inputDist, setInputDist] = useState(5); const [inputHeight, setInputHeight] = useState(2);
+            const [selectedBoomLen, setSelectedBoomLen] = useState(0); const [selectedCwt, setSelectedCwt] = useState(null);
             const [isUploading, setIsUploading] = useState(false);
 
-            // AUTO SELECTION AU CHARGEMENT si dispo dans localStorage
             useEffect(() => {
                 const autoSelected = localStorage.getItem(SELECTED_CRANE_KEY);
                 if (autoSelected) {
-                    const m = JSON.parse(autoSelected);
-                    const found = allMachines.find(x => x.id === m.id);
-                    if (found) {
-                        setCategory(found.category);
-                        setSelectedMachineId(found.id);
-                    }
+                    const m = JSON.parse(autoSelected); const found = allMachines.find(x => x.id === m.id);
+                    if (found) { setCategory(found.category); setSelectedMachineId(found.id); }
                 }
             }, [allMachines]); 
 
             const filteredMachines = useMemo(() => allMachines.filter(m => m.category === category), [allMachines, category]);
-
-            useEffect(() => {
-                if (filteredMachines.length > 0) { 
-                    if (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId)) {
-                        setSelectedMachineId(filteredMachines[0].id); 
-                    }
-                } 
-                else { setSelectedMachineId(null); }
-            }, [category, filteredMachines, selectedMachineId]);
+            useEffect(() => { if (filteredMachines.length > 0) { if (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId)) { setSelectedMachineId(filteredMachines[0].id); } } else { setSelectedMachineId(null); } }, [category, filteredMachines, selectedMachineId]);
 
             const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
+            useEffect(() => { if (machine?.mode === 'multi_chart' && machine?.boomLengths) { setSelectedBoomLen(machine.boomLengths[0]); } if(machine?.hasCounterweights && machine?.counterweights) { setSelectedCwt(machine.counterweights[machine.counterweights.length - 1]); } else { setSelectedCwt(null); } }, [machine]);
 
-            useEffect(() => {
-                if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
-                    setSelectedBoomLen(machine.boomLengths[0]); 
-                }
-                // Reset CWT if machine changes
-                if(machine?.hasCounterweights && machine?.counterweights) {
-                    setSelectedCwt(machine.counterweights[machine.counterweights.length - 1]); // Default to max Cwt for safety/best cap
-                } else {
-                    setSelectedCwt(null);
-                }
-            }, [machine]);
-
-            // Calcul capacité avec prise en compte du CWT
             const allowedLoad = calculateMachineCapacity(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null), selectedCwt);
-            const safeLoad = Math.floor(allowedLoad);
-            const calculatedMax = safeLoad > 0 ? safeLoad * 1.1 : (machine ? machine.maxLoad : 5000);
-            const finalMassSliderMax = Math.max(calculatedMax, 100);
+            const safeLoad = Math.floor(allowedLoad); const calculatedMax = safeLoad > 0 ? safeLoad * 1.1 : (machine ? machine.maxLoad : 5000); const finalMassSliderMax = Math.max(calculatedMax, 100);
+            useEffect(() => { if (inputLoad > finalMassSliderMax) { setInputLoad(Math.floor(finalMassSliderMax)); } }, [finalMassSliderMax, inputLoad]);
+            const isSafe = inputLoad <= safeLoad && safeLoad > 0; const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-            useEffect(() => {
-                if (inputLoad > finalMassSliderMax) {
-                    setInputLoad(Math.floor(finalMassSliderMax));
-                }
-            }, [finalMassSliderMax, inputLoad]);
-
-            const isSafe = inputLoad <= safeLoad && safeLoad > 0;
-            const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
-
-            // --- GESTION IMPORT EXCEL (Vers BDD Locale) ---
             const handleExcelUpload = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                setIsUploading(true);
-                const reader = new FileReader();
+                const file = e.target.files[0]; if (!file) return; setIsUploading(true); const reader = new FileReader();
                 reader.onload = async (evt) => {
                     try {
-                        const bstr = evt.target.result;
-                        const wb = XLSX.read(bstr, { type: 'binary' });
-                        
-                        // DETECTION MULTI-SHEET (Multi-Cwt)
-                        const isMultiSheet = wb.SheetNames.length > 1;
-                        let counterweights = [];
-                        let charts = {};
-                        let boomLengthsGlobal = new Set();
-                        let maxLoadFound = 0; 
-                        let maxReachFound = 0;
-
-                        // Fonction pour parser une sheet
+                        const bstr = evt.target.result; const wb = XLSX.read(bstr, { type: 'binary' });
+                        const isMultiSheet = wb.SheetNames.length > 1; let counterweights = []; let charts = {}; let boomLengthsGlobal = new Set(); let maxLoadFound = 0; let maxReachFound = 0;
                         const parseSheet = (sheetName) => {
-                             const ws = wb.Sheets[sheetName];
-                             const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-                             if(data.length < 2) return null;
-
-                             const headerRow = data[0];
-                             const colToBoom = {};
-                             const sheetCharts = {};
-
-                             for (let c = 1; c < headerRow.length; c++) {
-                                 const val = parseFloat(headerRow[c]);
-                                 if (!isNaN(val)) { 
-                                     boomLengthsGlobal.add(val); 
-                                     colToBoom[c] = val; 
-                                     sheetCharts[val] = { std: [] };
-                                 }
-                             }
-                             
+                             const ws = wb.Sheets[sheetName]; const data = XLSX.utils.sheet_to_json(ws, { header: 1 }); if(data.length < 2) return null;
+                             const headerRow = data[0]; const colToBoom = {}; const sheetCharts = {};
+                             for (let c = 1; c < headerRow.length; c++) { const val = parseFloat(headerRow[c]); if (!isNaN(val)) { boomLengthsGlobal.add(val); colToBoom[c] = val; sheetCharts[val] = { std: [] }; } }
                              for (let r = 1; r < data.length; r++) {
-                                 const row = data[r];
-                                 const radius = parseFloat(row[0]);
+                                 const row = data[r]; const radius = parseFloat(row[0]);
                                  if (!isNaN(radius)) {
                                      if (radius > maxReachFound) maxReachFound = radius;
-                                     for (let c = 1; c < row.length; c++) {
-                                         const loadVal = parseFloat(row[c]);
-                                         const boomLen = colToBoom[c];
-                                         if (boomLen && !isNaN(loadVal)) {
-                                             sheetCharts[boomLen].std.push({ d: radius, l: loadVal });
-                                             if (loadVal > maxLoadFound) maxLoadFound = loadVal;
-                                         }
-                                     }
+                                     for (let c = 1; c < row.length; c++) { const loadVal = parseFloat(row[c]); const boomLen = colToBoom[c]; if (boomLen && !isNaN(loadVal)) { sheetCharts[boomLen].std.push({ d: radius, l: loadVal }); if (loadVal > maxLoadFound) maxLoadFound = loadVal; } }
                                  }
                              }
                              return sheetCharts;
                         };
-
-                        if (isMultiSheet) {
-                            wb.SheetNames.forEach(sheetName => {
-                                const cwtData = parseSheet(sheetName);
-                                if(cwtData) {
-                                    counterweights.push(sheetName);
-                                    charts[sheetName] = cwtData;
-                                }
-                            });
-                        } else {
-                            // Single sheet logic
-                            charts = parseSheet(wb.SheetNames[0]);
-                        }
-
+                        if (isMultiSheet) { wb.SheetNames.forEach(sheetName => { const cwtData = parseSheet(sheetName); if(cwtData) { counterweights.push(sheetName); charts[sheetName] = cwtData; } }); } else { charts = parseSheet(wb.SheetNames[0]); }
                         const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
-
-                        const newMachine = {
-                            id: "custom_" + Date.now(),
-                            source: "local",
-                            category: category,
-                            name: `${file.name.replace(/\.[^/.]+$/, "")}`,
-                            type: "crane",
-                            mode: "multi_chart",
-                            maxLoad: maxLoadFound * 1000,
-                            maxReach: maxReachFound,
-                            maxHeight: Math.max(...boomLengths) + 2,
-                            hasTelescoping: false,
-                            hasCounterweights: isMultiSheet,
-                            counterweights: isMultiSheet ? counterweights : null,
-                            boomLengths: boomLengths,
-                            charts: charts,
-                            createdAt: new Date().toISOString(),
-                            isCustom: true
-                        };
-                        
-                        onSaveLocal([newMachine]); // Ajoute à la liste existante via App
-                        setSelectedMachineId(newMachine.id);
-                        alert("Machine importée et sauvegardée localement !");
-
+                        const newMachine = { id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, hasTelescoping: false, hasCounterweights: isMultiSheet, counterweights: isMultiSheet ? counterweights : null, boomLengths: boomLengths, charts: charts, createdAt: new Date().toISOString(), isCustom: true };
+                        onSaveLocal([newMachine]); setSelectedMachineId(newMachine.id); alert("Machine importée et sauvegardée localement !");
                     } catch (error) { alert("Erreur import: " + error.message); } finally { setIsUploading(false); e.target.value = null; }
-                };
-                reader.readAsBinaryString(file);
+                }; reader.readAsBinaryString(file);
             };
 
             const downloadTemplate = () => {
-                const wb = XLSX.utils.book_new();
-                
-                // Créer plusieurs sheets pour l'exemple
-                const sheets = [
-                    { name: "0t", multiplier: 0.5 },
-                    { name: "12t", multiplier: 0.8 },
-                    { name: "24t", multiplier: 1.0 }
-                ];
-
-                const baseData = [
-                    ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], 
-                    [3, 50, 40, null, null], 
-                    [10, 20, 18, 15, 12], 
-                    [30, null, null, 4, 3]
-                ];
-
-                sheets.forEach(sheet => {
-                    // Clone et applique multiplicateur pour simuler capacité différente
-                    const data = baseData.map((row, i) => {
-                        if (i === 0) return row;
-                        return row.map((cell, j) => {
-                            if (j === 0 || cell === null) return cell;
-                            return Number((cell * sheet.multiplier).toFixed(1));
-                        });
-                    });
-                    const ws = XLSX.utils.aoa_to_sheet(data);
-                    XLSX.utils.book_append_sheet(wb, ws, sheet.name);
-                });
-
-                XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
+                const wb = XLSX.utils.book_new(); const sheets = [ { name: "0t", multiplier: 0.5 }, { name: "12t", multiplier: 0.8 }, { name: "24t", multiplier: 1.0 } ]; const baseData = [ ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], [3, 50, 40, null, null], [10, 20, 18, 15, 12], [30, null, null, 4, 3] ];
+                sheets.forEach(sheet => { const data = baseData.map((row, i) => { if (i === 0) return row; return row.map((cell, j) => { if (j === 0 || cell === null) return cell; return Number((cell * sheet.multiplier).toFixed(1)); }); }); const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, sheet.name); }); XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
             };
 
-            // --- GRAPHIQUE 2D ---
             const GraphChart2D = () => {
                 if(!machine) return null;
-                const width = 600;
-                const height = 450;
-                const padding = 50;
-                const maxX = machine.maxReach * 1.1; 
-                const maxY = machine.maxHeight * 1.1;
-                const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding);
-                const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding);
-                const userX = scaleX(inputDist);
-                const userY = scaleY(inputHeight);
-                const gridStep = machine.category === 'telehandler' ? 1 : (maxX > 60 ? 10 : 5);
-
+                const width = 600; const height = 450; const padding = 50; const maxX = machine.maxReach * 1.1; const maxY = machine.maxHeight * 1.1; const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); const userX = scaleX(inputDist); const userY = scaleY(inputHeight); const gridStep = machine.category === 'telehandler' ? 1 : (maxX > 60 ? 10 : 5);
                 return (
                 <div className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
                     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
-                        <defs>
-                            <pattern id="grid" width={scaleX(gridStep) - scaleX(0)} height={scaleY(0) - scaleY(gridStep)} patternUnits="userSpaceOnUse">
-                                <path d={`M ${scaleX(gridStep) - scaleX(0)} 0 L 0 0 0 ${scaleY(0) - scaleY(gridStep)}`} fill="none" stroke="#f1f5f9" strokeWidth="1"/>
-                            </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="white"/>
-                        <rect x={padding} y={padding} width={width-2*padding} height={height-2*padding} fill="url(#grid)" />
-                        <line x1={padding} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
-                        <line x1={padding} y1={padding} x2={padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
-                        {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => {
-                            const val = i * gridStep;
-                            if (val > maxX) return null;
-                            return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>;
-                        })}
-                        {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => {
-                            const val = i * gridStep;
-                            if (val > maxY) return null;
-                            return <text key={`y${i}`} x={padding - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>;
-                        })}
-                        {machine.mode === 'zone' && machine.zones.map(z => (
-                            <g key={z.id}>
-                                <path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />
-                                <text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[4][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9">{z.load}kg</text>
-                            </g>
-                        ))}
-                        {machine.mode === 'multi_chart' && machine.boomLengths.map(len => (
-                            <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/>
-                        ))}
-                        <line x1={scaleX(0)} y1={scaleY(0)} x2={userX} y2={userY} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="3" opacity="0.6" />
-                        <line x1={userX} y1={userY} x2={userX} y2={height-padding} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="1" strokeDasharray="4 2" />
-                        <circle cx={userX} cy={userY} r="8" fill={isSafe ? "#22c55e" : "#ef4444"} stroke="white" strokeWidth="3" className="transition-all duration-300 ease-out" />
-                        <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
-                        <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
+                        <defs><pattern id="grid" width={scaleX(gridStep) - scaleX(0)} height={scaleY(0) - scaleY(gridStep)} patternUnits="userSpaceOnUse"><path d={`M ${scaleX(gridStep) - scaleX(0)} 0 L 0 0 0 ${scaleY(0) - scaleY(gridStep)}`} fill="none" stroke="#f1f5f9" strokeWidth="1"/></pattern></defs>
+                        <rect width="100%" height="100%" fill="white"/><rect x={padding} y={padding} width={width-2*padding} height={height-2*padding} fill="url(#grid)" /><line x1={padding} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" /><line x1={padding} y1={padding} x2={padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
+                        {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
+                        {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={padding - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
+                        {machine.mode === 'zone' && machine.zones.map(z => ( <g key={z.id}><path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" /><text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[4][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9">{z.load}kg</text></g> ))}
+                        {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
+                        <line x1={scaleX(0)} y1={scaleY(0)} x2={userX} y2={userY} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="3" opacity="0.6" /><line x1={userX} y1={userY} x2={userX} y2={height-padding} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="1" strokeDasharray="4 2" /><circle cx={userX} cy={userY} r="8" fill={isSafe ? "#22c55e" : "#ef4444"} stroke="white" strokeWidth="3" className="transition-all duration-300 ease-out" />
+                        <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text><text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
                     </svg>
-                    <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                        {isSafe ? 'ZONE SÉCURISÉE' : 'ZONE INTERDITE'}
-                    </div>
+                    <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> {isSafe ? 'ZONE SÉCURISÉE' : 'ZONE INTERDITE'} </div>
                 </div>
                 );
             };
 
             return (
                 <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
-                    
-                    {/* MENU GESTION BDD LOCALE UNIQUEMENT */}
                     {showDbManager && <DbManagerModal machines={localMachinesOnly} onClose={() => setShowDbManager(false)} onDelete={onDeleteLocal} onReset={onResetLocal} onImport={onImportLocal}/>}
-
                     <div className="flex flex-wrap justify-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-                        {[{id: 'telehandler', label: 'Engin Télescopique', icon: Truck}, {id: 'mobile_crane', label: 'Grue Mobile', icon: Move}, {id: 'crawler_crane', label: 'Grue Treillis', icon: Anchor}].map(cat => (
-                            <button key={cat.id} onClick={() => setCategory(cat.id)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${category === cat.id ? 'bg-[#004e98] text-white shadow-md' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>
-                                <cat.icon size={18} /> {cat.label}
-                            </button>
-                        ))}
+                        {[{id: 'telehandler', label: 'Engin Télescopique', icon: Truck}, {id: 'mobile_crane', label: 'Grue Mobile', icon: Move}, {id: 'crawler_crane', label: 'Grue Treillis', icon: Anchor}].map(cat => ( <button key={cat.id} onClick={() => setCategory(cat.id)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${category === cat.id ? 'bg-[#004e98] text-white shadow-md' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}> <cat.icon size={18} /> {cat.label} </button> ))}
                     </div>
-
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                         <div className="lg:col-span-4 space-y-6">
                             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-1 h-full bg-[#004e98]"></div>
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><Truck size={18} className="text-[#004e98]"/> Choix de l'engin</h3>
-                                    <button onClick={() => setShowDbManager(true)} className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 flex items-center gap-1"><Database size={12}/> Gérer Locale</button>
-                                </div>
-                                
+                                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Truck size={18} className="text-[#004e98]"/> Choix de l'engin</h3><button onClick={() => setShowDbManager(true)} className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 flex items-center gap-1"><Database size={12}/> Gérer Locale</button></div>
                                 <div className="mb-4">
                                     <label className="block text-xs font-bold text-slate-500 mb-1">Sélectionner dans la BDD (Globale & Locale)</label>
                                     <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
-                                            {filteredMachines.map(m => (
-                                                <option key={m.id} value={m.id}>
-                                                    {m.name} 
-                                                    {m.source === 'external' ? " [BDD GitHub]" : (m.source === 'local' ? " [Local]" : " [Système]")}
-                                                </option>
-                                            ))}
+                                            {filteredMachines.map(m => ( <option key={m.id} value={m.id}> {m.name} {m.source === 'external' ? " [BDD GitHub]" : (m.source === 'local' ? " [Local]" : " [Système]")} </option> ))}
                                     </select>
                                 </div>
-
                                 {machine && (
                                     <div className="flex gap-2 mb-4">
-                                        <button 
-                                            onClick={() => exportCraneExcel(machine)}
-                                            className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors">
-                                            <FileText size={14}/> Abaque.xlsx
-                                        </button>
-                                        <button 
-                                            onClick={() => generateAdequacyPDF(machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, selectedCwt)}
-                                            className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors">
-                                            <FileText size={14}/> Adéquation de levage.pdf
-                                        </button>
+                                        <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque .xlsx</button>
+                                        <button onClick={() => generateAdequacyPDF(machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, selectedCwt)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Rapport .pdf</button>
                                     </div>
                                 )}
-
                                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="text-xs font-bold text-blue-800 flex items-center gap-1"><Database size={12}/> Import Fichier Spécifique</span>
-                                        <button onClick={downloadTemplate} className="text-[10px] text-blue-600 underline flex items-center gap-1 hover:text-blue-800"><Download size={10}/> Modèle Multi-Onglet</button>
-                                    </div>
+                                    <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-blue-800 flex items-center gap-1"><Database size={12}/> Import Fichier Spécifique</span><button onClick={downloadTemplate} className="text-[10px] text-blue-600 underline flex items-center gap-1 hover:text-blue-800"><Download size={10}/> Modèle Multi-Onglet</button></div>
                                     <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-blue-200 border-dashed rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
-                                        {isUploading ? <span className="text-xs font-bold text-blue-600 animate-pulse">Traitement...</span> : (
-                                            <>
-                                                <Upload size={20} className="text-blue-400 mb-1" />
-                                                <span className="text-[10px] text-blue-500 font-semibold">Glisser fichier Excel</span>
-                                            </>
-                                        )}
+                                        {isUploading ? <span className="text-xs font-bold text-blue-600 animate-pulse">Traitement...</span> : ( <> <Upload size={20} className="text-blue-400 mb-1" /> <span className="text-[10px] text-blue-500 font-semibold">Glisser fichier Excel</span> </> )}
                                         <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelUpload} disabled={isUploading} />
                                     </label>
                                 </div>
                             </div>
-
                             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                                 <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Configuration de Levage</h3>
                                 <div className="space-y-6">
@@ -1079,26 +655,12 @@
                                         <>
                                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                                 <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {machine.boomLengths.map(len => (
-                                                        <button key={len} onClick={() => setSelectedBoomLen(len)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}>
-                                                            {len}
-                                                        </button>
-                                                    ))}
-                                                </div>
+                                                <div className="flex flex-wrap gap-2">{machine.boomLengths.map(len => ( <button key={len} onClick={() => setSelectedBoomLen(len)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {len} </button> ))}</div>
                                             </div>
-
-                                            {/* SELECTEUR DE CONTREPOIDS (NOUVEAU) */}
                                             {machine.hasCounterweights && (
                                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                                     <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids</label>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {machine.counterweights.map(cwt => (
-                                                            <button key={cwt} onClick={() => setSelectedCwt(cwt)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}>
-                                                                {cwt}
-                                                            </button>
-                                                        ))}
-                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">{machine.counterweights.map(cwt => ( <button key={cwt} onClick={() => setSelectedCwt(cwt)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {cwt} </button> ))}</div>
                                                 </div>
                                             )}
                                         </>
@@ -1109,30 +671,21 @@
                                 </div>
                             </div>
                         </div>
-
                         <div className="lg:col-span-8 space-y-6">
                             <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row ${isSafe ? 'bg-[#ecfdf5]' : 'bg-red-50'}`}>
                                 <div className={`absolute left-0 top-0 bottom-0 w-3 ${isSafe ? 'bg-[#10b981]' : 'bg-red-500'}`}></div>
                                 <div className="p-6 pl-9 flex-1 flex flex-col">
                                     <div className="flex justify-between items-start">
-                                        <div>
-                                            <h2 className={`text-2xl font-bold uppercase mb-1 ${isSafe ? 'text-[#065f46]' : 'text-red-800'}`}>{isSafe ? 'AUTORISÉ' : 'INTERDIT'}</h2>
-                                            <p className="text-slate-600 font-medium">{isSafe ? 'Configuration conforme' : 'Capacité dépassée ou hors de portée'}</p>
-                                        </div>
+                                        <div><h2 className={`text-2xl font-bold uppercase mb-1 ${isSafe ? 'text-[#065f46]' : 'text-red-800'}`}>{isSafe ? 'AUTORISÉ' : 'INTERDIT'}</h2><p className="text-slate-600 font-medium">{isSafe ? 'Configuration conforme' : 'Capacité dépassée ou hors de portée'}</p></div>
                                         <div className="text-right">
                                             <div className="text-4xl font-bold text-slate-800">{safeLoad/1000} <span className="text-xl font-semibold">t</span></div>
                                             <div className="text-xs text-slate-500 mt-1">Max Autorisé à {inputDist}m</div>
                                             {machine && machine.hasCounterweights && <div className="text-xs text-brand-red font-bold mt-1">CWT: {selectedCwt}</div>}
                                         </div>
                                     </div>
-                                    
                                     <div className="mt-8">
-                                        <div className="flex gap-2 items-end mb-2">
-                                            <span className="text-sm font-bold text-black">Utilisation {Math.round(usagePercent)}%</span>
-                                        </div>
-                                        <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden">
-                                            <div style={{width: `${Math.min(100, usagePercent)}%`}} className={`h-full rounded-full transition-all duration-500 ease-out ${isSafe ? 'bg-[#10b981]' : 'bg-red-500'}`}></div>
-                                        </div>
+                                        <div className="flex gap-2 items-end mb-2"><span className="text-sm font-bold text-black">Utilisation {Math.round(usagePercent)}%</span></div>
+                                        <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden"><div style={{width: `${Math.min(100, usagePercent)}%`}} className={`h-full rounded-full transition-all duration-500 ease-out ${isSafe ? 'bg-[#10b981]' : 'bg-red-500'}`}></div></div>
                                     </div>
                                 </div>
                             </div>
@@ -1145,74 +698,16 @@
 
         const App = () => {
             const [page, setPage] = useState('home');
-            
-            // --- GESTION CENTRALISÉE DES DONNÉES ---
-            const [localMachines, setLocalMachines] = useState([]);
-            const [externalMachines, setExternalMachines] = useState([]);
+            const [localMachines, setLocalMachines] = useState([]); const [externalMachines, setExternalMachines] = useState([]);
 
-            // 1. Charger LocalStorage
-            useEffect(() => {
-                const saved = localStorage.getItem(DB_KEY);
-                if (saved) {
-                    try {
-                        const parsed = JSON.parse(saved);
-                        // S'assurer que la source est marquée "local"
-                        setLocalMachines(parsed.map(m => ({...m, source: 'local'})));
-                    } catch (e) { console.error("Err LocalStorage", e); }
-                }
-            }, []);
+            useEffect(() => { const saved = localStorage.getItem(DB_KEY); if (saved) { try { const parsed = JSON.parse(saved); setLocalMachines(parsed.map(m => ({...m, source: 'local'}))); } catch (e) { console.error("Err LocalStorage", e); } } }, []);
+            useEffect(() => { const fetchExternal = async () => { try { const response = await fetch(EXTERNAL_DB_URL); if (!response.ok) throw new Error("Fichier non trouvé"); const data = await response.json(); setExternalMachines(data.map(m => ({...m, source: 'external'}))); } catch (err) { console.warn("Mode dégradé"); } }; fetchExternal(); }, []);
+            const allMachines = useMemo(() => { return [...HARDCODED_MACHINES, ...externalMachines, ...localMachines]; }, [externalMachines, localMachines]);
 
-            // 2. Charger BDD Externe (GitHub)
-            useEffect(() => {
-                const fetchExternal = async () => {
-                    try {
-                        const response = await fetch(EXTERNAL_DB_URL);
-                        if (!response.ok) throw new Error("Fichier non trouvé");
-                        const data = await response.json();
-                        // Marquer comme source externe
-                        setExternalMachines(data.map(m => ({...m, source: 'external'})));
-                    } catch (err) {
-                        console.warn("Impossible de charger engines.json (C'est normal si vous n'avez pas de serveur local ou si le fichier manque). Mode dégradé actif.");
-                    }
-                };
-                fetchExternal();
-            }, []);
-
-            // 3. Fusionner toutes les machines
-            const allMachines = useMemo(() => {
-                return [...HARDCODED_MACHINES, ...externalMachines, ...localMachines];
-            }, [externalMachines, localMachines]);
-
-            // Handlers pour la BDD Locale
-            const saveLocal = (newMachines) => {
-                // Ajouter aux machines locales existantes
-                const updated = [...localMachines, ...newMachines.map(m => ({...m, source: 'local'}))];
-                setLocalMachines(updated);
-                localStorage.setItem(DB_KEY, JSON.stringify(updated));
-            };
-
-            const deleteLocal = (id) => {
-                if(confirm("Supprimer cette machine locale ?")) {
-                    const updated = localMachines.filter(m => m.id !== id);
-                    setLocalMachines(updated);
-                    localStorage.setItem(DB_KEY, JSON.stringify(updated));
-                }
-            };
-
-            const resetLocal = () => {
-                if(confirm("Effacer TOUTES les machines locales ?")) {
-                    setLocalMachines([]);
-                    localStorage.setItem(DB_KEY, JSON.stringify([]));
-                }
-            };
-            
-            const importLocal = (imported) => {
-                 if(confirm(`Importer ${imported.length} machines ? Cela REMPLACE la base locale.`)) {
-                     const marked = imported.map(m => ({...m, source: 'local'}));
-                     setLocalMachines(marked);
-                     localStorage.setItem(DB_KEY, JSON.stringify(marked));
-                 }
-            }
+            const saveLocal = (newMachines) => { const updated = [...localMachines, ...newMachines.map(m => ({...m, source: 'local'}))]; setLocalMachines(updated); localStorage.setItem(DB_KEY, JSON.stringify(updated)); };
+            const deleteLocal = (id) => { if(confirm("Supprimer cette machine locale ?")) { const updated = localMachines.filter(m => m.id !== id); setLocalMachines(updated); localStorage.setItem(DB_KEY, JSON.stringify(updated)); } };
+            const resetLocal = () => { if(confirm("Effacer TOUTES les machines locales ?")) { setLocalMachines([]); localStorage.setItem(DB_KEY, JSON.stringify([])); } };
+            const importLocal = (imported) => { if(confirm(`Importer ${imported.length} machines ? Cela REMPLACE la base locale.`)) { const marked = imported.map(m => ({...m, source: 'local'})); setLocalMachines(marked); localStorage.setItem(DB_KEY, JSON.stringify(marked)); } }
 
             return (
                 <div className="min-h-screen">
@@ -1221,9 +716,7 @@
                         {page === 'home' && <HomePage navigate={setPage} />}
                         {page !== 'home' && (
                             <div className="animate-fade-in">
-                                <button onClick={() => setPage('home')} className="mb-6 flex items-center text-slate-500 hover:text-brand-blue font-bold px-4 py-2 hover:bg-white rounded-lg transition-colors">
-                                    <ArrowLeft size={20} className="mr-2"/> Retour Accueil
-                                </button>
+                                <button onClick={() => setPage('home')} className="mb-6 flex items-center text-slate-500 hover:text-brand-blue font-bold px-4 py-2 hover:bg-white rounded-lg transition-colors"><ArrowLeft size={20} className="mr-2"/> Retour Accueil</button>
                                 {page === 'determine' && <DeterminePage allMachines={allMachines} />}
                                 {page === 'verify' && <VerifyPage allMachines={allMachines} onSaveLocal={saveLocal} onDeleteLocal={deleteLocal} onResetLocal={resetLocal} onImportLocal={importLocal}/>}
                             </div>
@@ -1236,5 +729,310 @@
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
+
+    <!-- ============================================================ -->
+    <!--          MODULE INFORMATION / UPDATE / TUTO (INJECTÉ)        -->
+    <!-- ============================================================ -->
+
+    <!-- 2. BOUTON MISE À JOUR FLOTTANT (Déplacé en Bas Droite) -->
+    <div id="updateContainer">
+        <div id="updateAlert" class="bouncing">
+            <span class="update-text">Nouvelle version dispo !</span>
+            <span class="text-[#d92e2e] text-2xl font-bold">➜</span> 
+        </div>
+        <button id="refreshBtn" onclick="forceUpdate()" title="Rafraîchir l'application">
+            <div class="update-dot"></div>
+            &#x21bb;
+        </button>
+    </div>
+
+    <!-- 3. MODALE D'INFORMATION -->
+    <div id="info-modal-overlay" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden fade-in-modal border-l-8 border-[#004e98] relative">
+            <button onclick="closeInfoModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition">✕</button>
+
+            <div class="p-6 md:p-8 space-y-6">
+                <h2 class="text-2xl font-black text-slate-800 flex items-center gap-3">
+                    ℹ️ Infos Application
+                </h2>
+                
+                <!-- Bloc Version -->
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 relative">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="border-r border-blue-200 pr-2">
+                            <h3 class="text-[10px] font-bold text-[#004e98] uppercase tracking-widest mb-1">Installée (Local)</h3>
+                            <div class="font-mono text-xs font-bold text-slate-700 break-all" id="info-app-version">Check...</div>
+                            <p class="text-[10px] text-blue-500 mt-1 font-medium" id="info-local-time">Calcul...</p>
+                        </div>
+                        <div class="pl-2 text-right">
+                             <div class="flex items-center justify-end gap-2 mb-1">
+                                <span class="text-[10px] font-bold text-[#004e98] uppercase">Disponible (GitHub)</span>
+                                <div id="connection-status" class="w-2 h-2 rounded-full bg-gray-400"></div>
+                            </div>
+                            <div class="font-mono text-xs font-bold text-blue-600 break-all" id="info-remote-version">En attente...</div>
+                            <p class="text-[10px] text-blue-500 mt-1">Dernier Commit</p>
+                        </div>
+                    </div>
+                    <button id="btn-update-check" onclick="checkGitHubUpdates()" class="mt-4 w-full bg-[#004e98] text-white font-bold py-2 rounded-lg hover:bg-[#003b75] disabled:opacity-50 transition text-sm flex justify-center items-center gap-2 shadow-sm">
+                        <span>🔄</span> Vérifier maintenant
+                    </button>
+                </div>
+
+                <!-- Bloc À propos -->
+                <div id="about-card" class="bg-white border border-slate-200 p-4 rounded-xl relative shadow-sm transition-all duration-300 hover:shadow-md cursor-pointer" onclick="toggleAccordion('about-card')">
+                    <div class="flex items-center justify-between mb-0">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">🏗️</span>
+                            <h3 class="font-bold text-slate-800 text-lg">À propos de Levage Sécurisé</h3>
+                        </div>
+                        <svg class="w-6 h-6 toggle-arrow text-[#004e98]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                    
+                    <div class="collapsible-wrapper cursor-text" onclick="event.stopPropagation()">
+                        <div class="text-sm text-slate-600 text-justify leading-relaxed mt-4 mb-4 border-t border-slate-100 pt-4">
+                            <p class="mb-2"><strong>Levage Sécurisé</strong> est un outil professionnel d'aide à la décision pour les opérations de levage sur chantier.</p>
+                            <p class="mb-2">Fonctionnalités clés :</p>
+                            <ul class="list-disc pl-5 mb-4 space-y-1">
+                                <li><strong>Base de données :</strong> Gestion centralisée des grues mobiles, à tour et télescopiques.</li>
+                                <li><strong>Calculateur :</strong> Vérification instantanée des capacités (Abaques numériques).</li>
+                                <li><strong>Sécurité :</strong> Indicateurs visuels (Vert/Rouge) pour la conformité des levages.</li>
+                            </ul>
+                            <p class="text-xs text-slate-500 italic mt-2">Application connectée pour les mises à jour, mais fonctionnant localement pour la confidentialité de vos données chantiers.</p>
+                        </div>
+                        
+                        <button onclick="openTutorial()" class="bg-[#d92e2e] hover:bg-[#b91c1c] text-white font-bold py-3 px-6 rounded-xl shadow-md transition text-sm w-full flex justify-center items-center gap-2">
+                            🎓 Lancer le Tutoriel Interactif
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Footer Copyright -->
+                <div class="text-center border-t border-slate-100 pt-6 mt-4">
+                    <p class="text-xs text-slate-500 font-medium mb-1">© <span id="year-copy">2024</span> Chantiers Modernes Construction.</p>
+                    <div class="flex justify-center gap-2 text-[10px] text-slate-400">
+                        <a href="#" class="hover:text-[#004e98] underline">Support IT</a>
+                        <span>•</span>
+                        <a href="#" class="hover:text-[#004e98] underline">GitHub</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. MODALE POP-UP (TUTORIEL) -->
+    <div id="wn-overlay">
+        <div id="wn-modal">
+            <div class="wn-header">
+                <span id="wn-badge-text" class="wn-badge">Tutoriel</span>
+                <h2 id="wn-main-title" class="wn-title">Guide Rapide</h2>
+            </div>
+            <div id="wn-content" class="wn-slides-container"></div>
+            <div id="wn-dots" class="wn-dots"></div>
+            <button id="wn-btn" onclick="nextSlide()">Suivant ➜</button>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURATION GITHUB
+        const GITHUB_CONFIG = { 
+            username: 'antoto2021', 
+            repo: 'Appli-engin-levage' // Nom du repo conservé tel quel selon demande
+        };
+
+        const STORAGE_KEY_HASH = 'app_local_version_hash';
+        const STORAGE_KEY_TIME = 'app_local_update_timestamp';
+        const CHECK_DELAY_MS = 5000;
+        let hasPerformedCheck = false;
+
+        // DONNÉES DU TUTORIEL (Adaptées au contexte Levage)
+        const tutorialSlides = [
+            { icon: "👋", title: "Bienvenue !", desc: "Levage Sécurisé : Votre assistant digital pour valider vos adéquations de levage sur chantier." },
+            { icon: "🏗️", title: "Choix de l'engin", desc: "Sélectionnez votre grue parmi la base de données système ou importez vos propres modèles via Excel." },
+            { icon: "📐", title: "Configuration", desc: "Définissez la flèche, le contrepoids (nouveau !) et les paramètres de la charge (Masse, Portée)." },
+            { icon: "✅", title: "Vérification", desc: "Visualisez instantanément si le levage est autorisé (Vert) ou interdit (Rouge) grâce aux abaques intégrés." },
+            { icon: "📄", title: "Rapports", desc: "Générez des rapports PDF d'adéquation professionnels prêts à signer en un clic." },
+            { icon: "🔄", title: "Mises à jour", desc: "L'application vérifie automatiquement les nouvelles versions via GitHub tout en conservant vos données locales." }
+        ];
+        
+        let currentSlidesData = [];
+        let currentSlideIndex = 0;
+
+        window.addEventListener('load', () => {
+            document.getElementById('year-copy').innerText = new Date().getFullYear();
+            renderLocalInfo(); 
+            startAutoCheck();
+        });
+
+        function renderLocalInfo() {
+            const localHash = localStorage.getItem(STORAGE_KEY_HASH);
+            const localTime = localStorage.getItem(STORAGE_KEY_TIME);
+            document.getElementById('info-app-version').innerText = localHash ? localHash.substring(0, 7) : 'Aucun (Init)';
+            if (localTime) {
+                const diff = Date.now() - parseInt(localTime);
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(minutes / 60);
+                const days = Math.floor(hours / 24);
+                let timeString = "À l'instant";
+                if(days > 0) timeString = `Il y a ${days} jour(s)`;
+                else if(hours > 0) timeString = `Il y a ${hours} heure(s)`;
+                else if(minutes > 0) timeString = `Il y a ${minutes} min`;
+                document.getElementById('info-local-time').innerText = "Mise à jour : " + timeString;
+            } else {
+                document.getElementById('info-local-time').innerText = "Date inconnue";
+            }
+        }
+
+        function startAutoCheck() {
+            setTimeout(() => { if (!hasPerformedCheck) checkGitHubUpdates(true); }, CHECK_DELAY_MS);
+        }
+
+        async function fetchLatestCommit() {
+            try {
+                const url = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/commits?per_page=1&t=${Date.now()}`;
+                const r = await fetch(url);
+                if (r.status === 404) return 'repo_not_found';
+                if (!r.ok) throw new Error();
+                const d = await r.json();
+                return d[0];
+            } catch (e) { return null; }
+        }
+
+        async function checkGitHubUpdates(bg = false) {
+            hasPerformedCheck = true;
+            const remoteEl = document.getElementById('info-remote-version');
+            const statusDot = document.getElementById('connection-status');
+            const btn = document.getElementById('btn-update-check');
+
+            if(!bg) {
+                remoteEl.innerText = "Connexion...";
+                statusDot.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
+                btn.disabled = true;
+            }
+
+            const commit = await fetchLatestCommit();
+
+            if (commit === 'repo_not_found') {
+                if(!bg) {
+                    remoteEl.innerText = "Repo introuvable";
+                    statusDot.className = "w-2 h-2 rounded-full bg-red-500";
+                    alert("⚠️ Attention : Le dépôt GitHub configuré n'existe pas ou est privé.\nVérifiez la configuration en bas du script.");
+                }
+            } else if (commit) {
+                const rHash = commit.sha;
+                const lHash = localStorage.getItem(STORAGE_KEY_HASH);
+                
+                remoteEl.innerText = `Commit: ${rHash.substring(0,7)}`;
+                statusDot.className = "w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]";
+
+                if (!lHash) {
+                    localStorage.setItem(STORAGE_KEY_HASH, rHash);
+                    localStorage.setItem(STORAGE_KEY_TIME, Date.now()); 
+                    renderLocalInfo(); 
+                } else if (lHash !== rHash) {
+                    triggerUpdateAlert(); 
+                    remoteEl.innerHTML = `${rHash.substring(0,7)} <span class="bg-amber-100 text-amber-600 text-[9px] px-1 rounded font-bold">NEW</span>`;
+                }
+            } else {
+                if(!bg) { remoteEl.innerText = "Hors ligne"; statusDot.className = "w-2 h-2 rounded-full bg-red-500"; }
+            }
+            btn.disabled = false;
+        }
+
+        function triggerUpdateAlert() { 
+            document.getElementById('updateAlert').style.display = 'flex';
+            document.querySelector('.update-dot').style.display = 'block';
+        }
+        
+        function forceUpdate() {
+            const btn = document.getElementById('refreshBtn');
+            btn.classList.add('rotating');
+            setTimeout(() => {
+                fetchLatestCommit().then(commit => {
+                    if(commit && typeof commit === 'object') {
+                        localStorage.setItem(STORAGE_KEY_HASH, commit.sha);
+                        localStorage.setItem(STORAGE_KEY_TIME, Date.now()); 
+                    }
+                    window.location.reload();
+                });
+            }, 800);
+        }
+
+        function openInfoModal() {
+            document.getElementById('info-modal-overlay').classList.remove('hidden');
+            renderLocalInfo(); 
+            checkGitHubUpdates(false);
+        }
+        function closeInfoModal() { document.getElementById('info-modal-overlay').classList.add('hidden'); }
+        function toggleAccordion(id) { document.getElementById(id).classList.toggle('expanded'); }
+
+        function openTutorial() {
+            currentSlidesData = tutorialSlides;
+            currentSlideIndex = 0;
+            const badge = document.getElementById('wn-badge-text');
+            badge.innerText = "Tutoriel";
+            badge.style.backgroundColor = "#004e98"; 
+            badge.style.color = "#fff";
+            document.getElementById('wn-main-title').innerText = "Guide Rapide";
+
+            const overlay = document.getElementById('wn-overlay');
+            overlay.style.display = 'flex';
+            setTimeout(() => overlay.classList.add('show-modal'), 10);
+
+            renderSlides();
+            updateSlideUI();
+        }
+
+        function closePopup() {
+            const overlay = document.getElementById('wn-overlay');
+            overlay.classList.remove('show-modal');
+            setTimeout(() => overlay.style.display = 'none', 300);
+        }
+
+        function renderSlides() {
+            const container = document.getElementById('wn-content');
+            const dots = document.getElementById('wn-dots');
+            
+            container.innerHTML = currentSlidesData.map((s, i) => `
+                <div class="wn-slide" id="slide-${i}">
+                    <span class="wn-icon">${s.icon}</span>
+                    <span class="wn-slide-title">${s.title}</span>
+                    <p class="wn-desc">${s.desc}</p>
+                </div>
+            `).join('');
+
+            dots.innerHTML = currentSlidesData.map((_, i) => `<div class="wn-dot"></div>`).join('');
+        }
+
+        function updateSlideUI() {
+            document.querySelectorAll('.wn-slide').forEach((el, i) => {
+                el.style.display = i === currentSlideIndex ? 'block' : 'none';
+            });
+            document.querySelectorAll('.wn-dot').forEach((el, i) => {
+                if(i === currentSlideIndex) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+            const btn = document.getElementById('wn-btn');
+            if (currentSlideIndex === currentSlidesData.length - 1) {
+                btn.innerText = "Terminer ✅";
+                btn.style.backgroundColor = "#15803d";
+            } else {
+                btn.innerText = "Suivant ➜";
+                btn.style.backgroundColor = "#004e98";
+            }
+        }
+
+        function nextSlide() {
+            if (currentSlideIndex < currentSlidesData.length - 1) {
+                currentSlideIndex++;
+                updateSlideUI();
+            } else {
+                closePopup();
+            }
+        }
+        document.getElementById('wn-overlay').addEventListener('click', function(e) {
+            if (e.target === this) closePopup();
+        });
+    </script>
 </body>
 </html>
+
