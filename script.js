@@ -1,6 +1,3 @@
-/* --- script.js --- */
-
-// --- PARTIE 1 : LOGIQUE REACT (L'APPLICATION) ---
 const { useState, useMemo, useEffect, useRef } = React;
 const { jsPDF } = window.jspdf;
 
@@ -31,7 +28,7 @@ const DB_KEY = "cmc_levage_machines";
 const SELECTED_CRANE_KEY = "selectedCrane"; 
 const EXTERNAL_DB_URL = "engines.json";
 
-// --- DONNÉES STATIQUES ---
+// --- DONNÉES STATIQUES (Exemple fallback) ---
 const HARDCODED_MACHINES = [
     {
         id: "fixed_1", source: "system", category: "telehandler", name: "Manitou MLT 625-75H", type: "telehandler", mode: "zone", maxLoad: 2500, maxReach: 3.30, maxHeight: 5.90,
@@ -42,28 +39,6 @@ const HARDCODED_MACHINES = [
             { id: '1000kg', load: 1000, color: 'rgba(249, 115, 22, 0.3)', borderColor: 'rgba(249, 115, 22, 1)', points: [[2.2,0], [2.85,0], [2.85,0.5], [2.3,2.0], [1.9,2.5], [2.2,0.8]] },
             { id: '800kg', load: 800, color: 'rgba(239, 68, 68, 0.3)', borderColor: 'rgba(239, 68, 68, 1)', points: [[2.85,0], [3.15,0], [3.3,0.5], [3.15,2], [3.10,2.5], [2.85,3.25]] }
         ]
-    },
-    {
-        id: "fixed_2", source: "system", category: "mobile_crane", name: "Liebherr LTM 1050-3.1", type: "crane", mode: "multi_chart", maxLoad: 50000, maxReach: 34, maxHeight: 40, hasTelescoping: true, 
-        boomLengths: [11.4, 16.7, 22, 27.3, 32.6, 35.8, 38],
-        charts: {
-        "11.4": { std: [{d:3, l:50}, {d:4, l:41.3}, {d:5, l:24.1}, {d:6, l:29}, {d:7, l:24.5}, {d:8, l:16.8}], tele: [{d:3, l:42}, {d:4, l:36.5}, {d:5, l:30.6}, {d:6, l:25.5}, {d:7, l:21.5}, {d:8, l:16.8}] },
-        "16.7": { std: [{d:3, l:24.7}, {d:4, l:26.5}, {d:5, l:27.8}, {d:6, l:26}, {d:7, l:21.8}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}], tele: [{d:3, l:20.2}, {d:4, l:20.2}, {d:5, l:20.2}, {d:6, l:20.2}, {d:7, l:20.2}, {d:8, l:18.5}, {d:9, l:15.5}, {d:10, l:13.1}, {d:11, l:11.4}, {d:12, l:10}] },
-        "22": { std: [{d:3, l:24.6}, {d:4, l:25.1}, {d:5, l:24.2}, {d:6, l:22.7}, {d:7, l:21}, {d:8, l:18.6}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}], tele: [{d:3, l:19.1}, {d:4, l:18.9}, {d:5, l:18.8}, {d:6, l:18.7}, {d:7, l:18.6}, {d:8, l:18.2}, {d:9, l:15.6}, {d:10, l:13.4}, {d:11, l:11.5}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.3}, {d:18, l:5.2}] },
-        "27.3": { std: [{d:3, l:17}, {d:4, l:16.6}, {d:5, l:16}, {d:6, l:15.3}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}], tele: [{d:3, l:15.8}, {d:4, l:15.5}, {d:5, l:15.2}, {d:6, l:15}, {d:7, l:14.4}, {d:8, l:13.4}, {d:9, l:12.5}, {d:10, l:11.6}, {d:11, l:10.8}, {d:12, l:10.1}, {d:14, l:7.8}, {d:16, l:6.4}, {d:18, l:5.3}, {d:20, l:4.3}, {d:22, l:3.6}, {d:24, l:3}] },
-        "32.6": { std: [{d:4, l:11.5}, {d:5, l:11.3}, {d:6, l:11}, {d:7, l:10.7}, {d:8, l:10.2}, {d:9, l:9.7}, {d:10, l:9.2}, {d:11, l:8.6}, {d:12, l:8}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}], tele: [{d:4, l:10.7}, {d:5, l:10.3}, {d:6, l:10}, {d:7, l:9.7}, {d:8, l:9.4}, {d:9, l:9.2}, {d:10, l:8.8}, {d:11, l:8.1}, {d:12, l:7.9}, {d:14, l:7.1}, {d:16, l:6.4}, {d:18, l:5.4}, {d:20, l:4.4}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.2}] },
-        "35.8": { std: [{d:5, l:9.5}, {d:6, l:9.4}, {d:7, l:9.2}, {d:8, l:8.9}, {d:9, l:8.5}, {d:10, l:8.1}, {d:11, l:7.7}, {d:12, l:7.3}, {d:14, l:6.7}, {d:16, l:6.1}, {d:18, l:5.4}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.1}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}], tele: [{d:5, l:6.9}, {d:6, l:6.6}, {d:7, l:6.3}, {d:8, l:6.1}, {d:9, l:5.8}, {d:10, l:5.6}, {d:11, l:5.4}, {d:12, l:5.2}, {d:14, l:4.9}, {d:16, l:4.6}, {d:18, l:4}, {d:20, l:3.7}, {d:22, l:3.2}, {d:24, l:2.4}, {d:26, l:1.8}, {d:28, l:1.4}, {d:30, l:1}] },
-        "38": { std: [{d:6, l:7.5}, {d:7, l:7.2}, {d:8, l:7}, {d:9, l:6.7}, {d:10, l:6.5}, {d:11, l:6.2}, {d:12, l:6}, {d:14, l:5.6}, {d:16, l:5.2}, {d:18, l:4.8}, {d:20, l:4.3}, {d:22, l:3.7}, {d:24, l:3.2}, {d:26, l:2.7}, {d:28, l:2.3}, {d:30, l:1.9}, {d:32, l:1.6}, {d:34, l:1.4}], tele: [{d:6, l:3.7}, {d:7, l:3.5}, {d:8, l:3.3}, {d:9, l:3.2}, {d:10, l:3}, {d:11, l:2.8}, {d:12, l:2.7}, {d:14, l:2.5}, {d:16, l:2.3}, {d:18, l:1.7}, {d:20, l:1.3}, {d:22, l:0.9}] }
-        }
-    },
-    {
-        id: "fixed_3", source: "system", category: "mobile_crane", name: "Liebherr LTM 1130-5.1 (Vario)", type: "crane", mode: "multi_chart", hasCounterweights: true, counterweights: ["0t", "14t", "29t", "42t"], maxLoad: 130000, maxReach: 60, maxHeight: 65, boomLengths: [12.7, 30.1, 60],
-        charts: {
-            "42t": { "12.7": { std: [{d:3, l:130}, {d:9, l:65}, {d:12, l:50}] }, "30.1": { std: [{d:5, l:70}, {d:15, l:40}, {d:25, l:20}] }, "60": { std: [{d:10, l:20}, {d:30, l:10}, {d:50, l:2}] } },
-            "29t": { "12.7": { std: [{d:3, l:130}, {d:9, l:60}, {d:12, l:42}] }, "30.1": { std: [{d:5, l:68}, {d:15, l:35}, {d:25, l:15}] }, "60": { std: [{d:10, l:18}, {d:30, l:8}, {d:50, l:1.5}] } },
-            "14t": { "12.7": { std: [{d:3, l:130}, {d:9, l:50}, {d:12, l:35}] }, "30.1": { std: [{d:5, l:65}, {d:15, l:25}, {d:25, l:10}] }, "60": { std: [{d:10, l:15}, {d:30, l:5}, {d:50, l:0.5}] } },
-            "0t": { "12.7": { std: [{d:3, l:100}, {d:9, l:30}, {d:12, l:15}] }, "30.1": { std: [{d:5, l:40}, {d:15, l:10}, {d:25, l:5}] }, "60": { std: [{d:10, l:5}, {d:30, l:1}, {d:50, l:0}] } }
-        }
     }
 ];
 
@@ -94,7 +69,7 @@ const calculateMachineCapacity = (machine, dist, height, specificBoom = null, sp
             
             if (!points || points.length === 0) return 0;
             if (dist > points[points.length - 1].d) return 0;
-            if (dist < points[0].d) return 0;
+            if (dist < points[0].d) return 0; 
 
             for (let i = 0; i < points.length - 1; i++) {
                 const p1 = points[i];
@@ -146,24 +121,24 @@ const exportCraneExcel = (machine) => {
     const wb = XLSX.utils.book_new();
 
     const createSheetForData = (chartData, sheetName) => {
-          let ws_data = [];
-          const boomLengths = machine.boomLengths;
-          const header = ["Portée (m)", ...boomLengths.map(b => `Flèche ${b}m`)];
-          ws_data.push(header);
-          let allRadii = new Set();
-          boomLengths.forEach(len => { if (chartData[len]?.std) { chartData[len].std.forEach(p => allRadii.add(p.d)); } });
-          const sortedRadii = Array.from(allRadii).sort((a,b) => a - b);
-          sortedRadii.forEach(r => {
-              let row = [r];
-              boomLengths.forEach(len => {
-                  const points = chartData[len]?.std || [];
-                  const p = points.find(pt => Math.abs(pt.d - r) < 0.1);
-                  row.push(p ? p.l : ""); 
-              });
-              ws_data.push(row);
-          });
-          const ws = XLSX.utils.aoa_to_sheet(ws_data);
-          XLSX.utils.book_append_sheet(wb, ws, sheetName);
+         let ws_data = [];
+         const boomLengths = machine.boomLengths;
+         const header = ["Portée (m)", ...boomLengths.map(b => `Flèche ${b}m`)];
+         ws_data.push(header);
+         let allRadii = new Set();
+         boomLengths.forEach(len => { if (chartData[len]?.std) { chartData[len].std.forEach(p => allRadii.add(p.d)); } });
+         const sortedRadii = Array.from(allRadii).sort((a,b) => a - b);
+         sortedRadii.forEach(r => {
+             let row = [r];
+             boomLengths.forEach(len => {
+                 const points = chartData[len]?.std || [];
+                 const p = points.find(pt => Math.abs(pt.d - r) < 0.1);
+                 row.push(p ? p.l : ""); 
+             });
+             ws_data.push(row);
+         });
+         const ws = XLSX.utils.aoa_to_sheet(ws_data);
+         XLSX.utils.book_append_sheet(wb, ws, sheetName);
     };
 
     if (machine.mode === 'multi_chart') {
@@ -461,8 +436,28 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         const file = e.target.files[0]; if (!file) return; setIsUploading(true); const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
-                const bstr = evt.target.result; const wb = XLSX.read(bstr, { type: 'binary' });
-                const isMultiSheet = wb.SheetNames.length > 1; let counterweights = []; let charts = {}; let boomLengthsGlobal = new Set(); let maxLoadFound = 0; let maxReachFound = 0;
+                const bstr = evt.target.result; 
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                
+                // CORRECTION IMPORT: Détection améliorée des contre-poids
+                let isMultiSheet = wb.SheetNames.length > 1;
+                let useCwtMode = isMultiSheet;
+
+                // Si une seule feuille, vérifier si le nom ressemble à un contre-poids (Nombre ou se termine par "t")
+                // Ex: "72", "12.5", "42t"
+                if (!useCwtMode) {
+                    const firstSheet = wb.SheetNames[0].trim();
+                    const isGenericName = /^(sheet|feuille)\d+$/i.test(firstSheet);
+                    // Regex : Un nombre, optionnellement décimal, optionnellement suivi de 't' ou 'T'
+                    const looksLikeCwt = /^(\d+(\.\d+)?)[tT]?$/.test(firstSheet);
+                    
+                    if (!isGenericName && looksLikeCwt) {
+                        useCwtMode = true;
+                    }
+                }
+
+                let counterweights = []; let charts = {}; let boomLengthsGlobal = new Set(); let maxLoadFound = 0; let maxReachFound = 0;
+                
                 const parseSheet = (sheetName) => {
                      const ws = wb.Sheets[sheetName]; const data = XLSX.utils.sheet_to_json(ws, { header: 1 }); if(data.length < 2) return null;
                      const headerRow = data[0]; const colToBoom = {}; const sheetCharts = {};
@@ -476,9 +471,39 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                      }
                      return sheetCharts;
                 };
-                if (isMultiSheet) { wb.SheetNames.forEach(sheetName => { const cwtData = parseSheet(sheetName); if(cwtData) { counterweights.push(sheetName); charts[sheetName] = cwtData; } }); } else { charts = parseSheet(wb.SheetNames[0]); }
+
+                if (useCwtMode) { 
+                    wb.SheetNames.forEach(sheetName => { 
+                        const cwtData = parseSheet(sheetName); 
+                        if(cwtData) { 
+                            counterweights.push(sheetName); 
+                            charts[sheetName] = cwtData; 
+                        } 
+                    }); 
+                } else { 
+                    charts = parseSheet(wb.SheetNames[0]); 
+                }
+                
                 const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
-                const newMachine = { id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, hasTelescoping: false, hasCounterweights: isMultiSheet, counterweights: isMultiSheet ? counterweights : null, boomLengths: boomLengths, charts: charts, createdAt: new Date().toISOString(), isCustom: true };
+                const newMachine = { 
+                    id: "custom_" + Date.now(), 
+                    source: "local", 
+                    category: category, 
+                    name: `${file.name.replace(/\.[^/.]+$/, "")}`, 
+                    type: "crane", 
+                    mode: "multi_chart", 
+                    maxLoad: maxLoadFound * 1000, 
+                    maxReach: maxReachFound, 
+                    maxHeight: Math.max(...boomLengths) + 2, 
+                    hasTelescoping: false, 
+                    hasCounterweights: useCwtMode, 
+                    counterweights: useCwtMode ? counterweights : null, 
+                    boomLengths: boomLengths, 
+                    charts: charts, 
+                    createdAt: new Date().toISOString(), 
+                    isCustom: true 
+                };
+                
                 onSaveLocal([newMachine]); setSelectedMachineId(newMachine.id); alert("Machine importée et sauvegardée localement !");
             } catch (error) { alert("Erreur import: " + error.message); } finally { setIsUploading(false); e.target.value = null; }
         }; reader.readAsBinaryString(file);
@@ -621,13 +646,14 @@ const App = () => {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App />);
 
-// --- PARTIE 2 : LOGIQUE JS STANDARD (MODALES, GITHUB, TUTO) ---
-// Note: Ces fonctions doivent être accessibles globalement (window)
+// ============================================================
+//          MODULE INFORMATION / UPDATE / TUTO (VANILLA JS)
+// ============================================================
 
 // CONFIGURATION GITHUB
 const GITHUB_CONFIG = { 
     username: 'antoto2021', 
-    repo: 'Appli-engin-de-levage'
+    repo: 'Appli-engin-de-levage' 
 };
 
 const STORAGE_KEY_HASH = 'app_local_version_hash';
@@ -649,19 +675,15 @@ let currentSlidesData = [];
 let currentSlideIndex = 0;
 
 window.addEventListener('load', () => {
-    const yearElem = document.getElementById('year-copy');
-    if(yearElem) yearElem.innerText = new Date().getFullYear();
+    document.getElementById('year-copy').innerText = new Date().getFullYear();
     renderLocalInfo(); 
     startAutoCheck();
 });
 
-// Attacher les fonctions au scope global (window) pour qu'elles soient accessibles depuis le HTML
-window.renderLocalInfo = function() {
+function renderLocalInfo() {
     const localHash = localStorage.getItem(STORAGE_KEY_HASH);
     const localTime = localStorage.getItem(STORAGE_KEY_TIME);
-    const versionEl = document.getElementById('info-app-version');
-    if(versionEl) versionEl.innerText = localHash ? localHash.substring(0, 7) : 'Aucun (Init)';
-    
+    document.getElementById('info-app-version').innerText = localHash ? localHash.substring(0, 7) : 'Aucun (Init)';
     if (localTime) {
         const diff = Date.now() - parseInt(localTime);
         const minutes = Math.floor(diff / 60000);
@@ -671,20 +693,17 @@ window.renderLocalInfo = function() {
         if(days > 0) timeString = `Il y a ${days} jour(s)`;
         else if(hours > 0) timeString = `Il y a ${hours} heure(s)`;
         else if(minutes > 0) timeString = `Il y a ${minutes} min`;
-        
-        const timeEl = document.getElementById('info-local-time');
-        if(timeEl) timeEl.innerText = "Mise à jour : " + timeString;
+        document.getElementById('info-local-time').innerText = "Mise à jour : " + timeString;
     } else {
-        const timeEl = document.getElementById('info-local-time');
-        if(timeEl) timeEl.innerText = "Date inconnue";
+        document.getElementById('info-local-time').innerText = "Date inconnue";
     }
 }
 
-window.startAutoCheck = function() {
-    setTimeout(() => { if (!hasPerformedCheck) window.checkGitHubUpdates(true); }, CHECK_DELAY_MS);
+function startAutoCheck() {
+    setTimeout(() => { if (!hasPerformedCheck) checkGitHubUpdates(true); }, CHECK_DELAY_MS);
 }
 
-window.fetchLatestCommit = async function() {
+async function fetchLatestCommit() {
     try {
         const url = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/commits?per_page=1&t=${Date.now()}`;
         const r = await fetch(url);
@@ -695,7 +714,7 @@ window.fetchLatestCommit = async function() {
     } catch (e) { return null; }
 }
 
-window.checkGitHubUpdates = async function(bg = false) {
+async function checkGitHubUpdates(bg = false) {
     hasPerformedCheck = true;
     const remoteEl = document.getElementById('info-remote-version');
     const statusDot = document.getElementById('connection-status');
@@ -707,7 +726,7 @@ window.checkGitHubUpdates = async function(bg = false) {
         btn.disabled = true;
     }
 
-    const commit = await window.fetchLatestCommit();
+    const commit = await fetchLatestCommit();
 
     if (commit === 'repo_not_found') {
         if(!bg) {
@@ -725,29 +744,27 @@ window.checkGitHubUpdates = async function(bg = false) {
         if (!lHash) {
             localStorage.setItem(STORAGE_KEY_HASH, rHash);
             localStorage.setItem(STORAGE_KEY_TIME, Date.now()); 
-            window.renderLocalInfo(); 
+            renderLocalInfo(); 
         } else if (lHash !== rHash) {
-            window.triggerUpdateAlert(); 
+            triggerUpdateAlert(); 
             remoteEl.innerHTML = `${rHash.substring(0,7)} <span class="bg-amber-100 text-amber-600 text-[9px] px-1 rounded font-bold">NEW</span>`;
         }
     } else {
         if(!bg) { remoteEl.innerText = "Hors ligne"; statusDot.className = "w-2 h-2 rounded-full bg-red-500"; }
     }
-    if(btn) btn.disabled = false;
+    btn.disabled = false;
 }
 
-window.triggerUpdateAlert = function() { 
-    const alertBox = document.getElementById('updateAlert');
-    const dot = document.querySelector('.update-dot');
-    if(alertBox) alertBox.style.display = 'flex';
-    if(dot) dot.style.display = 'block';
+function triggerUpdateAlert() { 
+    document.getElementById('updateAlert').style.display = 'flex';
+    document.querySelector('.update-dot').style.display = 'block';
 }
 
-window.forceUpdate = function() {
+function forceUpdate() {
     const btn = document.getElementById('refreshBtn');
-    if(btn) btn.classList.add('rotating');
+    btn.classList.add('rotating');
     setTimeout(() => {
-        window.fetchLatestCommit().then(commit => {
+        fetchLatestCommit().then(commit => {
             if(commit && typeof commit === 'object') {
                 localStorage.setItem(STORAGE_KEY_HASH, commit.sha);
                 localStorage.setItem(STORAGE_KEY_TIME, Date.now()); 
@@ -757,24 +774,15 @@ window.forceUpdate = function() {
     }, 800);
 }
 
-window.openInfoModal = function() {
-    const overlay = document.getElementById('info-modal-overlay');
-    if(overlay) overlay.classList.remove('hidden');
-    window.renderLocalInfo(); 
-    window.checkGitHubUpdates(false);
+function openInfoModal() {
+    document.getElementById('info-modal-overlay').classList.remove('hidden');
+    renderLocalInfo(); 
+    checkGitHubUpdates(false);
 }
+function closeInfoModal() { document.getElementById('info-modal-overlay').classList.add('hidden'); }
+function toggleAccordion(id) { document.getElementById(id).classList.toggle('expanded'); }
 
-window.closeInfoModal = function() { 
-    const overlay = document.getElementById('info-modal-overlay');
-    if(overlay) overlay.classList.add('hidden'); 
-}
-
-window.toggleAccordion = function(id) { 
-    const el = document.getElementById(id);
-    if(el) el.classList.toggle('expanded'); 
-}
-
-window.openTutorial = function() {
+function openTutorial() {
     currentSlidesData = tutorialSlides;
     currentSlideIndex = 0;
     const badge = document.getElementById('wn-badge-text');
@@ -787,17 +795,17 @@ window.openTutorial = function() {
     overlay.style.display = 'flex';
     setTimeout(() => overlay.classList.add('show-modal'), 10);
 
-    window.renderSlides();
-    window.updateSlideUI();
+    renderSlides();
+    updateSlideUI();
 }
 
-window.closePopup = function() {
+function closePopup() {
     const overlay = document.getElementById('wn-overlay');
     overlay.classList.remove('show-modal');
     setTimeout(() => overlay.style.display = 'none', 300);
 }
 
-window.renderSlides = function() {
+function renderSlides() {
     const container = document.getElementById('wn-content');
     const dots = document.getElementById('wn-dots');
     
@@ -812,7 +820,7 @@ window.renderSlides = function() {
     dots.innerHTML = currentSlidesData.map((_, i) => `<div class="wn-dot"></div>`).join('');
 }
 
-window.updateSlideUI = function() {
+function updateSlideUI() {
     document.querySelectorAll('.wn-slide').forEach((el, i) => {
         el.style.display = i === currentSlideIndex ? 'block' : 'none';
     });
@@ -830,19 +838,24 @@ window.updateSlideUI = function() {
     }
 }
 
-window.nextSlide = function() {
+function nextSlide() {
     if (currentSlideIndex < currentSlidesData.length - 1) {
         currentSlideIndex++;
-        window.updateSlideUI();
+        updateSlideUI();
     } else {
-        window.closePopup();
+        closePopup();
     }
 }
+document.getElementById('wn-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closePopup();
+});
 
-// Event Listeners Globaux
-const overlay = document.getElementById('wn-overlay');
-if(overlay) {
-    overlay.addEventListener('click', function(e) {
-        if (e.target === this) window.closePopup();
-    });
-}
+// Attachement global pour les appels onclick HTML
+window.forceUpdate = forceUpdate;
+window.checkGitHubUpdates = checkGitHubUpdates;
+window.closeInfoModal = closeInfoModal;
+window.toggleAccordion = toggleAccordion;
+window.openTutorial = openTutorial;
+window.closePopup = closePopup;
+window.nextSlide = nextSlide;
+window.openInfoModal = openInfoModal;
