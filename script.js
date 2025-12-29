@@ -409,10 +409,22 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const localMachinesOnly = useMemo(() => allMachines.filter(m => m.source === 'local'), [allMachines]);
     const [category, setCategory] = useState('telehandler');
     const [selectedMachineId, setSelectedMachineId] = useState(null);
-    const [inputLoad, setInputLoad] = useState(1000); const [inputDist, setInputDist] = useState(5); const [inputHeight, setInputHeight] = useState(2);
-    const [selectedBoomLen, setSelectedBoomLen] = useState(0); const [selectedCwt, setSelectedCwt] = useState(null);
+    
+    // Inputs
+    const [inputLoad, setInputLoad] = useState(1000); 
+    const [inputDist, setInputDist] = useState(5); 
+    const [inputHeight, setInputHeight] = useState(2);
+    
+    // Configuration Machine
+    const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
+    const [selectedCwt, setSelectedCwt] = useState(null);
+    
+    // NOUVEAU STATE : Mode Auto pour le contrepoids
+    const [isAutoCwt, setIsAutoCwt] = useState(false); 
+
     const [isUploading, setIsUploading] = useState(false);
 
+    // Chargement initiale (localStorage)
     useEffect(() => {
         const autoSelected = localStorage.getItem(SELECTED_CRANE_KEY);
         if (autoSelected) {
@@ -421,58 +433,104 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [allMachines]); 
 
-    // CORRECTION : Tri des machines pour afficher les imports les plus récents en premier
+    // Filtrage et Tri des machines
     const filteredMachines = useMemo(() => {
         return allMachines
             .filter(m => m.category === category)
             .sort((a, b) => {
-                // 1. Les locales passent avant les systèmes/externes
                 if (a.source === 'local' && b.source !== 'local') return -1;
                 if (a.source !== 'local' && b.source === 'local') return 1;
-                
-                // 2. Si les deux sont locales, la plus récente d'abord (Descendant)
                 if (a.source === 'local' && b.source === 'local') {
                     const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
                     const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
                     return dateB - dateA; 
                 }
-                // 3. Sinon ordre alphabétique
                 return a.name.localeCompare(b.name);
             });
     }, [allMachines, category]);
 
+    // Sélection par défaut de la première machine
     useEffect(() => { if (filteredMachines.length > 0) { if (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId)) { setSelectedMachineId(filteredMachines[0].id); } } else { setSelectedMachineId(null); } }, [category, filteredMachines, selectedMachineId]);
 
+    // Machine courante
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
-    useEffect(() => { if (machine?.mode === 'multi_chart' && machine?.boomLengths) { setSelectedBoomLen(machine.boomLengths[0]); } if(machine?.hasCounterweights && machine?.counterweights) { setSelectedCwt(machine.counterweights[machine.counterweights.length - 1]); } else { setSelectedCwt(null); } }, [machine]);
+    
+    // Initialisation Flèche et CWT au changement de machine
+    useEffect(() => { 
+        if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
+            setSelectedBoomLen(machine.boomLengths[0]); 
+        } 
+        if(machine?.hasCounterweights && machine?.counterweights) { 
+            // Par défaut, on prend le plus lourd si pas en auto, ou on laisse la logique auto faire
+            if (!isAutoCwt) {
+                setSelectedCwt(machine.counterweights[machine.counterweights.length - 1]); 
+            }
+        } else { 
+            setSelectedCwt(null); 
+        } 
+    }, [machine]);
 
+    // --- LOGIQUE AUTOMATIQUE CWT ---
+    useEffect(() => {
+        if (isAutoCwt && machine && machine.hasCounterweights && machine.counterweights) {
+            // 1. Trier les contrepoids du plus léger au plus lourd (pour trouver le minimum requis)
+            // On parse en float pour trier correctement "12.5" vs "100" vs "72t"
+            const sortedCwts = [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b));
+            
+            let bestCwt = null;
+            let found = false;
+
+            // 2. Tester chaque CWT
+            for (const cwt of sortedCwts) {
+                // Calculer la capacité pour CE contrepoids spécifique
+                const capacity = calculateMachineCapacity(machine, inputDist, inputHeight, selectedBoomLen, cwt);
+                
+                // Si la capacité est suffisante pour la charge
+                if (capacity >= inputLoad) {
+                    bestCwt = cwt;
+                    found = true;
+                    break; // On arrête dès qu'on a trouvé le plus léger qui marche
+                }
+            }
+
+            // 3. Si aucun ne marche (trop lourd), on prend le plus gros (le dernier de la liste triée) pour maximiser l'affichage
+            if (!found && sortedCwts.length > 0) {
+                bestCwt = sortedCwts[sortedCwts.length - 1];
+            }
+
+            // 4. Appliquer
+            if (bestCwt && bestCwt !== selectedCwt) {
+                setSelectedCwt(bestCwt);
+            }
+        }
+    }, [isAutoCwt, inputLoad, inputDist, inputHeight, selectedBoomLen, machine]); // Se déclenche quand les sliders bougent
+
+    // Calculs de sécurité finaux pour l'affichage
     const allowedLoad = calculateMachineCapacity(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null), selectedCwt);
-    const safeLoad = Math.floor(allowedLoad); const calculatedMax = safeLoad > 0 ? safeLoad * 1.1 : (machine ? machine.maxLoad : 5000); const finalMassSliderMax = Math.max(calculatedMax, 100);
+    const safeLoad = Math.floor(allowedLoad); 
+    const calculatedMax = safeLoad > 0 ? safeLoad * 1.1 : (machine ? machine.maxLoad : 5000); 
+    const finalMassSliderMax = Math.max(calculatedMax, 100);
+    
+    // Limitation slider masse
     useEffect(() => { if (inputLoad > finalMassSliderMax) { setInputLoad(Math.floor(finalMassSliderMax)); } }, [finalMassSliderMax, inputLoad]);
-    const isSafe = inputLoad <= safeLoad && safeLoad > 0; const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
+    
+    const isSafe = inputLoad <= safeLoad && safeLoad > 0; 
+    const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
+    // --- GESTION IMPORT FICHIER ---
     const handleExcelUpload = (e) => {
         const file = e.target.files[0]; if (!file) return; setIsUploading(true); const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
-                const bstr = evt.target.result; 
-                const wb = XLSX.read(bstr, { type: 'binary' });
-                
-                let isMultiSheet = wb.SheetNames.length > 1;
-                let useCwtMode = isMultiSheet;
-
+                const bstr = evt.target.result; const wb = XLSX.read(bstr, { type: 'binary' });
+                let isMultiSheet = wb.SheetNames.length > 1; let useCwtMode = isMultiSheet;
                 if (!useCwtMode) {
                     const firstSheet = wb.SheetNames[0].trim();
                     const isGenericName = /^(sheet|feuille)\d+$/i.test(firstSheet);
                     const looksLikeCwt = /^(\d+(\.\d+)?)[tT]?$/.test(firstSheet);
-                    
-                    if (!isGenericName && looksLikeCwt) {
-                        useCwtMode = true;
-                    }
+                    if (!isGenericName && looksLikeCwt) { useCwtMode = true; }
                 }
-
                 let counterweights = []; let charts = {}; let boomLengthsGlobal = new Set(); let maxLoadFound = 0; let maxReachFound = 0;
-                
                 const parseSheet = (sheetName) => {
                      const ws = wb.Sheets[sheetName]; const data = XLSX.utils.sheet_to_json(ws, { header: 1 }); if(data.length < 2) return null;
                      const headerRow = data[0]; const colToBoom = {}; const sheetCharts = {};
@@ -486,39 +544,9 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                      }
                      return sheetCharts;
                 };
-
-                if (useCwtMode) { 
-                    wb.SheetNames.forEach(sheetName => { 
-                        const cwtData = parseSheet(sheetName); 
-                        if(cwtData) { 
-                            counterweights.push(sheetName); 
-                            charts[sheetName] = cwtData; 
-                        } 
-                    }); 
-                } else { 
-                    charts = parseSheet(wb.SheetNames[0]); 
-                }
-                
+                if (useCwtMode) { wb.SheetNames.forEach(sheetName => { const cwtData = parseSheet(sheetName); if(cwtData) { counterweights.push(sheetName); charts[sheetName] = cwtData; } }); } else { charts = parseSheet(wb.SheetNames[0]); }
                 const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
-                const newMachine = { 
-                    id: "custom_" + Date.now(), 
-                    source: "local", 
-                    category: category, 
-                    name: `${file.name.replace(/\.[^/.]+$/, "")}`, 
-                    type: "crane", 
-                    mode: "multi_chart", 
-                    maxLoad: maxLoadFound * 1000, 
-                    maxReach: maxReachFound, 
-                    maxHeight: Math.max(...boomLengths) + 2, 
-                    hasTelescoping: false, 
-                    hasCounterweights: useCwtMode, 
-                    counterweights: useCwtMode ? counterweights : null, 
-                    boomLengths: boomLengths, 
-                    charts: charts, 
-                    createdAt: new Date().toISOString(), 
-                    isCustom: true 
-                };
-                
+                const newMachine = { id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, boomLengths: boomLengths, charts: charts, createdAt: new Date().toISOString(), isCustom: true };
                 onSaveLocal([newMachine]); setSelectedMachineId(newMachine.id); alert("Machine importée et sauvegardée localement !");
             } catch (error) { alert("Erreur import: " + error.message); } finally { setIsUploading(false); e.target.value = null; }
         }; reader.readAsBinaryString(file);
@@ -563,14 +591,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <div className="mb-4">
                             <label className="block text-xs font-bold text-slate-500 mb-1">Sélectionner dans la BDD (Globale & Locale)</label>
                             <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
-                                    {filteredMachines.map(m => ( 
-                                        <option key={m.id} value={m.id}> 
-                                            {m.name} 
-                                            {m.source === 'local' 
-                                                ? ` [Local - ${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : 'Ancien'}]` 
-                                                : (m.source === 'external' ? " [BDD GitHub]" : " [Système]")}
-                                        </option> 
-                                    ))}
+                                    {filteredMachines.map(m => ( <option key={m.id} value={m.id}> {m.name} {m.source === 'local' ? ` [Local - ${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : 'Ancien'}]` : (m.source === 'external' ? " [BDD GitHub]" : " [Système]")} </option> ))}
                             </select>
                         </div>
                         {machine && (
@@ -598,8 +619,28 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     </div>
                                     {machine.hasCounterweights && (
                                         <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                            <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids</label>
-                                            <div className="flex flex-wrap gap-2">{machine.counterweights.map(cwt => ( <button key={cwt} onClick={() => setSelectedCwt(cwt)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {cwt} </button> ))}</div>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <label className="text-xs font-bold uppercase text-slate-500 block">Contrepoids</label>
+                                                {/* BOUTON TOGGLE AUTO/MANUEL */}
+                                                <button 
+                                                    onClick={() => setIsAutoCwt(!isAutoCwt)}
+                                                    className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoCwt ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}
+                                                >
+                                                    {isAutoCwt ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
+                                                </button>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {machine.counterweights.map(cwt => ( 
+                                                    <button 
+                                                        key={cwt} 
+                                                        onClick={() => { setSelectedCwt(cwt); setIsAutoCwt(false); }} // Le clic manuel désactive le mode auto
+                                                        className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoCwt && selectedCwt === cwt ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}
+                                                    > 
+                                                        {cwt} 
+                                                    </button> 
+                                                ))}
+                                            </div>
+                                            {isAutoCwt && <p className="text-[10px] text-green-600 mt-2 italic flex items-center gap-1"><CheckCircle size={10}/> Sélection automatique activée</p>}
                                         </div>
                                     )}
                                 </>
