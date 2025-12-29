@@ -421,7 +421,26 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [allMachines]); 
 
-    const filteredMachines = useMemo(() => allMachines.filter(m => m.category === category), [allMachines, category]);
+    // CORRECTION : Tri des machines pour afficher les imports les plus récents en premier
+    const filteredMachines = useMemo(() => {
+        return allMachines
+            .filter(m => m.category === category)
+            .sort((a, b) => {
+                // 1. Les locales passent avant les systèmes/externes
+                if (a.source === 'local' && b.source !== 'local') return -1;
+                if (a.source !== 'local' && b.source === 'local') return 1;
+                
+                // 2. Si les deux sont locales, la plus récente d'abord (Descendant)
+                if (a.source === 'local' && b.source === 'local') {
+                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return dateB - dateA; 
+                }
+                // 3. Sinon ordre alphabétique
+                return a.name.localeCompare(b.name);
+            });
+    }, [allMachines, category]);
+
     useEffect(() => { if (filteredMachines.length > 0) { if (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId)) { setSelectedMachineId(filteredMachines[0].id); } } else { setSelectedMachineId(null); } }, [category, filteredMachines, selectedMachineId]);
 
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
@@ -439,16 +458,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 const bstr = evt.target.result; 
                 const wb = XLSX.read(bstr, { type: 'binary' });
                 
-                // CORRECTION IMPORT: Détection améliorée des contre-poids
                 let isMultiSheet = wb.SheetNames.length > 1;
                 let useCwtMode = isMultiSheet;
 
-                // Si une seule feuille, vérifier si le nom ressemble à un contre-poids (Nombre ou se termine par "t")
-                // Ex: "72", "12.5", "42t"
                 if (!useCwtMode) {
                     const firstSheet = wb.SheetNames[0].trim();
                     const isGenericName = /^(sheet|feuille)\d+$/i.test(firstSheet);
-                    // Regex : Un nombre, optionnellement décimal, optionnellement suivi de 't' ou 'T'
                     const looksLikeCwt = /^(\d+(\.\d+)?)[tT]?$/.test(firstSheet);
                     
                     if (!isGenericName && looksLikeCwt) {
@@ -548,7 +563,14 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <div className="mb-4">
                             <label className="block text-xs font-bold text-slate-500 mb-1">Sélectionner dans la BDD (Globale & Locale)</label>
                             <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
-                                    {filteredMachines.map(m => ( <option key={m.id} value={m.id}> {m.name} {m.source === 'external' ? " [BDD GitHub]" : (m.source === 'local' ? " [Local]" : " [Système]")} </option> ))}
+                                    {filteredMachines.map(m => ( 
+                                        <option key={m.id} value={m.id}> 
+                                            {m.name} 
+                                            {m.source === 'local' 
+                                                ? ` [Local - ${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : 'Ancien'}]` 
+                                                : (m.source === 'external' ? " [BDD GitHub]" : " [Système]")}
+                                        </option> 
+                                    ))}
                             </select>
                         </div>
                         {machine && (
