@@ -59,7 +59,7 @@ const calculateMachineCapacity = (machine, dist, height, specificBoom = null, sp
     // Note: Pour les potences, la portée max peut être augmentée, mais on garde la limite machine pour l'instant
     if (dist > machine.maxReach + 2 || height > machine.maxHeight + 2) return 0; 
 
-    // 1. GRUES MOBILES (Abaques courbes)
+    // 1. GRUES MOBILES & TREILLIS (Abaques courbes)
     if (machine.mode === 'multi_chart') {
         const checkBoom = (boomLen, cwt) => {
             const reqReachSq = (dist * dist) + (height * height);
@@ -88,7 +88,13 @@ const calculateMachineCapacity = (machine, dist, height, specificBoom = null, sp
         if (specificBoom) { return checkBoom(specificBoom, specificCwt); } 
         else {
             let maxCap = 0;
-            const cwtsToCheck = machine.hasCounterweights ? machine.counterweights : [null];
+            // CORRECTION ICI : Si un contrepoids spécifique est demandé, on ne teste que celui-là.
+            // Sinon, on teste tous les contrepoids disponibles.
+            let cwtsToCheck = [null];
+            if (machine.hasCounterweights) {
+                cwtsToCheck = specificCwt ? [specificCwt] : machine.counterweights;
+            }
+            
             cwtsToCheck.forEach(cwt => {
                   machine.boomLengths.forEach(len => {
                     const cap = checkBoom(len, cwt);
