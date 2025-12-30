@@ -551,7 +551,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     // --- CALCULS DE SÉCURITÉ ---
     const allowedLoad = calculateMachineCapacity(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null), selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
-    const calculatedMax = safeLoad > 0 ? safeLoad * 1.1 : (machine ? machine.maxLoad : 5000); 
+    const calculatedMax = safeLoad > 0 ? safeLoad * 1.05 : (machine ? machine.maxLoad : 5000); 
     const finalMassSliderMax = Math.max(calculatedMax, 100);
     
     useEffect(() => { if (inputLoad > finalMassSliderMax) { setInputLoad(Math.floor(finalMassSliderMax)); } }, [finalMassSliderMax, inputLoad]);
