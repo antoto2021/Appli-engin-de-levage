@@ -464,7 +464,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [selectedTool, setSelectedTool] = useState(null);
     
     const [isAutoCwt, setIsAutoCwt] = useState(false); 
-    const [isAutoHeight, setIsAutoHeight] = useState(false); // NOUVEAU : Mode Hauteur Max
+    const [isAutoHeight, setIsAutoHeight] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
     useEffect(() => {
@@ -505,6 +505,29 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
     }, [machine]);
 
+    // --- CALCUL GEOMETRIQUE (Tête de flèche) ---
+    const tipHeight = useMemo(() => {
+        if (!machine) return 10;
+        let boomLen = 0;
+        
+        if (machine.mode === 'multi_chart') {
+            boomLen = selectedBoomLen;
+        } else {
+            // Pour les télescopiques (mode zone), on estime la flèche max
+            // On considère que la flèche est sortie pour atteindre la portée demandée
+            // C'est une approximation car on n'a pas la longueur de flèche exacte sélectionnée en mode zone
+            // On utilise Pythagore inverse ou la maxReach si dist > maxReach
+            boomLen = Math.sqrt(Math.pow(Math.max(inputDist, machine.maxReach), 2) + Math.pow(machine.maxHeight, 2));
+        }
+
+        if (!boomLen || boomLen < inputDist) return 0; // Impossible physiquement
+
+        // Pythagore : Hauteur = Racine(Flèche² - Portée²)
+        // Offset pivot (1.5m estimé)
+        const h = Math.sqrt(Math.pow(boomLen, 2) - Math.pow(inputDist, 2));
+        return isNaN(h) ? 0 : h + 1.5; 
+    }, [machine, selectedBoomLen, inputDist]);
+
     // Auto CWT logic
     useEffect(() => {
         if (isAutoCwt && machine && machine.hasCounterweights && machine.counterweights) {
@@ -519,28 +542,15 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [isAutoCwt, inputLoad, inputDist, inputHeight, selectedBoomLen, machine]);
 
-    // --- LOGIQUE HAUTEUR AUTO (SNAP TO BOOM) ---
-    // Calcule la hauteur de la tête de flèche en fonction de la portée et de la longueur de flèche
-    const tipHeight = useMemo(() => {
-        if (!machine || !selectedBoomLen) return machine?.maxHeight || 10;
-        // Pythagore : Hauteur = Racine(Flèche² - Portée²)
-        // On ajoute un petit offset (ex: 1.5m) car l'axe de rotation n'est pas au sol
-        const pivotHeight = 1.5; 
-        const h = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
-        return isNaN(h) ? 0 : h + pivotHeight;
-    }, [machine, selectedBoomLen, inputDist]);
-
-    // Si le mode "Hauteur Max" est activé, on force inputHeight à suivre la tête de flèche
+    // Auto Height Logic
     useEffect(() => {
-        if (isAutoHeight && machine.mode === 'multi_chart') {
-            // On limite pour ne pas dépasser la max height absolue
-            const safeTip = Math.min(tipHeight, machine.maxHeight);
-            if(safeTip > 0) setInputHeight(parseFloat(safeTip.toFixed(1)));
+        if (isAutoHeight) {
+            const safeTip = Math.max(0, tipHeight - 1); // On se met 1m sous la tête
+            setInputHeight(parseFloat(safeTip.toFixed(1)));
         }
-    }, [isAutoHeight, tipHeight, machine]);
+    }, [isAutoHeight, tipHeight, inputDist]); // Recalcul si la portée change
 
-
-    // Calcul Final
+    // --- CALCULS DE SÉCURITÉ ---
     const allowedLoad = calculateMachineCapacity(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null), selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     const calculatedMax = safeLoad > 0 ? safeLoad * 1.1 : (machine ? machine.maxLoad : 5000); 
@@ -548,34 +558,38 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     
     useEffect(() => { if (inputLoad > finalMassSliderMax) { setInputLoad(Math.floor(finalMassSliderMax)); } }, [finalMassSliderMax, inputLoad]);
     
-    const isSafe = inputLoad <= safeLoad && safeLoad > 0; 
+    // Vérification géométrique (Hauteur possible ?)
+    const isHeightValid = machine?.mode === 'multi_chart' ? (inputHeight <= tipHeight) : (inputHeight <= machine?.maxHeight);
+    
+    // Sécurité Globale (Charge OK ET Hauteur OK)
+    const isLoadSafe = inputLoad <= safeLoad && safeLoad > 0;
+    const isSafe = isLoadSafe && isHeightValid;
+    
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-    const handleExcelUpload = (e) => { /* ... (Code inchangé) ... */ };
-    const downloadTemplate = () => { /* ... (Code inchangé) ... */ };
+    const handleExcelUpload = (e) => { /* Code inchangé */ }; // (Conserver le code existant dans votre fichier)
+    const downloadTemplate = () => { /* Code inchangé */ }; // (Conserver le code existant dans votre fichier)
 
-    // GRAPHIQUE 2D AMÉLIORÉ (CÂBLE + TÊTE FLÈCHE)
+    // --- GRAPHIQUE 2D (Refondu) ---
     const GraphChart2D = () => {
         if(!machine) return null;
-        const width = 600; const height = 450; const padding = 50; const maxX = machine.maxReach * 1.1; const maxY = machine.maxHeight * 1.1; const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
+        const width = 600; const height = 450; const padding = 50; 
+        const maxX = machine.maxReach * 1.1; 
+        const maxY = machine.maxHeight * 1.1; 
         
-        const userX = scaleX(inputDist); 
-        const userY = scaleY(inputHeight);
+        const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); 
+        const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
         
-        // Coordonnées de la tête de flèche (pour le dessin du câble)
-        let tipX = userX; // Par défaut, au dessus de la charge
-        let tipY = userY; // Par défaut, sur la charge
+        // Coordonnées
+        const hookX = scaleX(inputDist);
+        const hookY = scaleY(inputHeight);
         
-        if (machine.mode === 'multi_chart') {
-            // Si grue mobile, la tête est sur la courbe
-            const calculatedTipY = Math.min(tipHeight, machine.maxHeight);
-            // Si la portée est > longueur flèche, on ne peut pas calculer (hors abaque)
-            if (inputDist <= selectedBoomLen) {
-                tipY = scaleY(calculatedTipY);
-            }
-        } else {
-            // Pour télescopique/zone, on simule une tête de flèche plus haut (simplifié)
-            tipY = scaleY(Math.max(inputHeight + 1, machine.maxHeight * 0.8)); 
+        let tipX = hookX;
+        let tipY = scaleY(tipHeight);
+
+        // Si la portée dépasse la flèche (cas impossible physiquement), on limite graphiquement
+        if (machine.mode === 'multi_chart' && inputDist > selectedBoomLen) {
+             tipY = scaleY(0); // Au sol
         }
 
         const gridStep = machine.category === 'telehandler' ? 1 : (maxX > 60 ? 10 : 5);
@@ -586,6 +600,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             zonesToDraw = machine.charts[selectedTool].zones;
         }
 
+        // Couleur d'état
+        const statusColor = isSafe ? "#16a34a" : "#dc2626"; // Vert ou Rouge
+        const statusFill = isSafe ? "#22c55e" : "#ef4444";
+
         return (
         <div className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
@@ -594,28 +612,27 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={padding - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
                 
-                {zonesToDraw.map(z => ( <g key={z.id}><path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />{z.points.length > 2 && (<text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[2][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9" style={{textShadow: '0px 1px 2px rgba(0,0,0,0.5)'}}>{z.load/1000}t</text>)}</g> ))}
+                {/* ZONES (Télescopiques) */}
+                {zonesToDraw.map(z => ( <g key={z.id}><path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />{z.points.length > 2 && (<text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[2][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9">{z.load/1000}t</text>)}</g> ))}
+                
+                {/* COURBES (Grues Mobiles) */}
                 {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
                 
-                {/* DESSIN DU CÂBLE DE LEVAGE (NOUVEAU) */}
-                {machine.mode === 'multi_chart' && inputDist <= selectedBoomLen && (
-                    <>
-                        {/* Tête de flèche (Poulie) */}
-                        <circle cx={tipX} cy={tipY} r="4" fill="white" stroke="#0f172a" strokeWidth="2" />
-                        {/* Câble */}
-                        <line x1={tipX} y1={tipY} x2={userX} y2={userY} stroke="#0f172a" strokeWidth="1.5" strokeDasharray="3 2" />
-                    </>
-                )}
-
-                <line x1={scaleX(0)} y1={scaleY(0)} x2={userX} y2={userY} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="3" opacity="0.6" />
-                <line x1={userX} y1={userY} x2={userX} y2={height-padding} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="1" strokeDasharray="4 2" />
+                {/* 1. BRAS DE GRUE (Ligne entre origine et tête de flèche) */}
+                <line x1={scaleX(0)} y1={scaleY(0)} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="3" opacity="0.8" />
                 
-                {/* Point Charge (Crochet) */}
-                <circle cx={userX} cy={userY} r="8" fill={isSafe ? "#22c55e" : "#ef4444"} stroke="white" strokeWidth="3" className="transition-all duration-300 ease-out" />
+                {/* 2. CÂBLE (Ligne pointillée entre Tête et Crochet) */}
+                <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
+
+                {/* 3. TÊTE DE FLÈCHE (Point Coloré - Sur la courbe) */}
+                <circle cx={tipX} cy={tipY} r="6" fill={statusFill} stroke="white" strokeWidth="2" />
+
+                {/* 4. CROCHET (Point Blanc/Noir - Hauteur utilisateur) */}
+                <circle cx={hookX} cy={hookY} r="6" fill="white" stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text><text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
             </svg>
-            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> {isSafe ? 'ZONE SÉCURISÉE' : 'ZONE INTERDITE'} </div>
+            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> {isSafe ? 'ZONE SÉCURISÉE' : (isHeightValid ? 'SURCHARGE' : 'HAUTEUR IMPOSSIBLE')} </div>
         </div>
         );
     };
@@ -629,7 +646,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-4 space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
-                        {/* Bloc sélection engin (inchangé) */}
                         <div className="absolute top-0 left-0 w-1 h-full bg-[#004e98]"></div>
                         <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Truck size={18} className="text-[#004e98]"/> Choix de l'engin</h3><button onClick={() => setShowDbManager(true)} className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 flex items-center gap-1"><Database size={12}/> Gérer Locale</button></div>
                         <div className="mb-4">
@@ -653,7 +669,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         </div>
                     </div>
                     
-                    {/* Bloc Configuration */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Configuration de Levage</h3>
                         <div className="space-y-6">
@@ -687,35 +702,24 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             )}
 
                             <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={finalMassSliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
-                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
+                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => { setInputDist(parseFloat(e.target.value)); setIsAutoHeight(false); }} />
                             
-                            {/* RANGE HAUTEUR AVEC BOUTON AUTO */}
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
                                     <div className="flex items-center gap-2">
                                         <label className="text-lg font-bold text-slate-700">Hauteur Crochet</label>
-                                        {machine.mode === 'multi_chart' && (
-                                            <button 
-                                                onClick={() => setIsAutoHeight(!isAutoHeight)}
-                                                className={`text-[9px] font-bold px-2 py-0.5 rounded border transition-colors ${isAutoHeight ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}
-                                                title="Forcer la hauteur max possible (Tête de flèche)"
-                                            >
-                                                {isAutoHeight ? 'AUTO (Max)' : 'MANUEL'}
-                                            </button>
-                                        )}
+                                        <button onClick={() => setIsAutoHeight(!isAutoHeight)} className={`text-[9px] font-bold px-2 py-0.5 rounded border transition-colors ${isAutoHeight ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`} title="Suivre la hauteur de tête de flèche">
+                                            {isAutoHeight ? 'AUTO (Max)' : 'MANUEL'}
+                                        </button>
                                     </div>
                                     <span className="text-xl font-bold text-[#004e98]">{inputHeight} <span className="text-sm">m</span></span>
                                 </div>
                                 <div className="relative w-full h-8">
-                                    <input type="range" min={0} max={machine?.maxHeight + 2} step={0.5} value={inputHeight} onChange={(e) => { setInputHeight(parseFloat(e.target.value)); setIsAutoHeight(false); }} className="absolute w-full h-full z-20 opacity-0 cursor-pointer" />
+                                    <input type="range" min={0} max={machine?.maxHeight + 5} step={0.5} value={inputHeight} onChange={(e) => { setInputHeight(parseFloat(e.target.value)); setIsAutoHeight(false); }} className="absolute w-full h-full z-20 opacity-0 cursor-pointer" />
                                     <div className="absolute top-1/2 left-0 w-full h-3 bg-slate-200 rounded-full -translate-y-1/2 overflow-hidden z-10 pointer-events-none">
-                                        <div style={{ width: `${((inputHeight - 0) / (machine?.maxHeight + 2 - 0)) * 100}%` }} className="h-full bg-[#004e98] transition-all duration-100 ease-out"></div>
+                                        <div style={{ width: `${((inputHeight - 0) / (machine?.maxHeight + 5 - 0)) * 100}%` }} className="h-full bg-[#004e98] transition-all duration-100 ease-out"></div>
                                     </div>
-                                    <div style={{ left: `calc(${((inputHeight - 0) / (machine?.maxHeight + 2 - 0)) * 100}% - 12px)` }} className="absolute top-1/2 w-6 h-6 bg-[#004e98] border-2 border-white rounded-full shadow-md -translate-y-1/2 z-10 pointer-events-none transition-all duration-100 ease-out"></div>
-                                </div>
-                                <div className="flex justify-between text-xs text-slate-400 mt-1 font-medium">
-                                    <span>0m</span>
-                                    <span>Max : {Math.round(machine?.maxHeight + 2)}m</span>
+                                    <div style={{ left: `calc(${((inputHeight - 0) / (machine?.maxHeight + 5 - 0)) * 100}% - 12px)` }} className="absolute top-1/2 w-6 h-6 bg-[#004e98] border-2 border-white rounded-full shadow-md -translate-y-1/2 z-10 pointer-events-none transition-all duration-100 ease-out"></div>
                                 </div>
                             </div>
 
@@ -727,7 +731,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <div className={`absolute left-0 top-0 bottom-0 w-3 ${isSafe ? 'bg-[#10b981]' : 'bg-red-500'}`}></div>
                         <div className="p-6 pl-9 flex-1 flex flex-col">
                             <div className="flex justify-between items-start">
-                                <div><h2 className={`text-2xl font-bold uppercase mb-1 ${isSafe ? 'text-[#065f46]' : 'text-red-800'}`}>{isSafe ? 'AUTORISÉ' : 'INTERDIT'}</h2><p className="text-slate-600 font-medium">{isSafe ? 'Configuration conforme' : 'Capacité dépassée ou hors de portée'}</p></div>
+                                <div><h2 className={`text-2xl font-bold uppercase mb-1 ${isSafe ? 'text-[#065f46]' : 'text-red-800'}`}>{isSafe ? 'AUTORISÉ' : (isHeightValid ? 'INTERDIT' : 'HAUTEUR !')}</h2><p className="text-slate-600 font-medium">{!isHeightValid ? 'Hauteur impossible avec cette flèche' : (isSafe ? 'Configuration conforme' : 'Capacité dépassée ou hors de portée')}</p></div>
                                 <div className="text-right">
                                     <div className="text-4xl font-bold text-slate-800">{safeLoad/1000} <span className="text-xl font-semibold">t</span></div>
                                     <div className="text-xs text-slate-500 mt-1">Max Autorisé à {inputDist}m</div>
