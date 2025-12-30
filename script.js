@@ -54,21 +54,19 @@ const isPointInPolygon = (x, y, polygon) => {
     return inside;
 };
 
-// --- MOTEUR DE CALCUL CENTRALISÉ ---
+// --- MOTEUR DE CALCUL (Remplacement de calculateMachineCapacity) ---
 const CraneCalculator = {
     getCapacity: (machine, dist, height, boom, cwt, tool) => {
-        // 1. Sécurité anti-crash (Si la machine n'est pas encore chargée)
         if (!machine) return 0;
         
-        // 2. Limites physiques de base
+        // 1. Limites physiques
         if (dist > machine.maxReach + 2) return 0;
 
-        // 3. Cas des GRUES MOBILES (Abaques Courbes)
+        // 2. Mode GRUES MOBILES (Abaques courbes)
         if (machine.mode === 'multi_chart') {
             const reqReachSq = (dist * dist) + (height * height);
-            if (reqReachSq > (boom * boom) + 0.1) return 0; // Flèche trop courte
+            if (reqReachSq > (boom * boom) + 0.1) return 0; 
 
-            // Récupération des points de la courbe
             let points = [];
             if (machine.hasCounterweights && cwt) {
                 points = machine.charts[cwt]?.[boom]?.std;
@@ -78,35 +76,35 @@ const CraneCalculator = {
 
             if (!points || points.length === 0) return 0;
 
-            // A. RÈGLE DU POINT EXACT (Pour le cas 60m / 33.5t)
-            // Si on est pile sur un point (à 10cm près), on le prend direct.
-            const exactPoint = points.find(p => Math.abs(p.d - dist) <= 0.1);
+            // --- CORRECTION CRITIQUE 1 : RECHERCHE EXACTE ---
+            // On vérifie D'ABORD si on est pile sur un point (tolérance 5cm)
+            // Cela permet de valider le point 60m même si le segment 11m->60m est un "trou".
+            const exactPoint = points.find(p => Math.abs(p.d - dist) <= 0.05);
             if (exactPoint) return Math.floor(exactPoint.l * 1000);
 
-            // B. RÈGLE DE L'INTERPOLATION (Pour les valeurs entre deux)
+            // --- CORRECTION CRITIQUE 2 : INTERPOLATION SÉCURISÉE ---
             for (let i = 0; i < points.length - 1; i++) {
                 const p1 = points[i];
                 const p2 = points[i+1];
 
                 if (dist > p1.d && dist < p2.d) {
-                    // SÉCURITÉ ANTI-TROU (Pour le cas 14m fantôme)
-                    // Si l'écart entre les deux points est > 10m, c'est un vide.
+                    // Si l'écart entre les deux points est > 10m, c'est un vide (donnée manquante)
+                    // On renvoie 0 pour dire "Pas de capacité ici"
                     if ((p2.d - p1.d) > 10) return 0;
 
-                    // Sinon, calcul proportionnel
+                    // Sinon on interpole
                     const slope = (p2.l - p1.l) / (p2.d - p1.d);
                     const interpolated = p1.l + slope * (dist - p1.d);
                     return Math.floor(interpolated * 1000);
                 }
             }
-            return 0; // Hors abaque
+            return 0; 
         }
 
-        // 4. Cas des TÉLESCOPIQUES (Zones de couleur)
+        // 3. Mode TÉLESCOPIQUES (Zones)
         if (machine.mode === 'zone' || machine.mode === 'zone_multi_tool') {
             let activeZones = [];
             if (machine.mode === 'zone_multi_tool') {
-                // Choix des zones selon l'outil
                 if (tool && machine.charts[tool]) activeZones = machine.charts[tool].zones;
                 else if (machine.tools?.length > 0 && machine.charts[machine.tools[0]]) {
                     activeZones = machine.charts[machine.tools[0]].zones;
@@ -117,8 +115,6 @@ const CraneCalculator = {
 
             let foundLoad = 0;
             if (activeZones) {
-                // On suppose que la fonction isPointInPolygon est disponible globalement ou importée
-                // Si elle n'est pas définie ici, assurez-vous qu'elle existe dans votre fichier script.js
                 for (let zone of activeZones) {
                     if (typeof isPointInPolygon === 'function' && isPointInPolygon(dist, height, zone.points)) {
                         if (zone.load > foundLoad) foundLoad = zone.load;
@@ -127,113 +123,8 @@ const CraneCalculator = {
             }
             return foundLoad;
         }
-
         return 0;
     }
-};
-
-const calculateMachineCapacity = (machine, dist, height, specificBoom = null, specificCwt = null, specificTool = null) => {
-    if (!machine) return 0;
-    // Note: Pour les potences, la portée max peut être augmentée, mais on garde la limite machine pour l'instant
-    if (dist > machine.maxReach + 2 || height > machine.maxHeight + 2) return 0; 
-
-    // 1. GRUES MOBILES & TREILLIS (Abaques courbes)
-    if (machine.mode === 'multi_chart') {
-        const checkBoom = (boomLen, cwt) => {
-            const reqReachSq = (dist * dist) + (height * height);
-            if (reqReachSq > (boomLen * boomLen) + 0.1) return 0;
-            
-            let points;
-            if (machine.hasCounterweights && cwt) { points = machine.charts[cwt]?.[boomLen]?.std; } 
-            else { points = machine.charts[boomLen]?.std; }
-            
-            if (!points || points.length === 0) return 0;
-            
-            // CORRECTION 1 : Cas d'un point unique (ex: LG-1750 flèche 21m)
-            // Si l'abaque n'a qu'un seul point, on ne valide que si on est pile dessus (avec tolérance)
-            if (points.length === 1) {
-                if (Math.abs(dist - points[0].d) < 0.1) return Math.floor(points[0].l * 1000);
-                return 0;
-            }
-
-            // CORRECTION 2 : Tolérance pour les frontières (ex: 60m pile)
-            const epsilon = 0.05; 
-
-            // Si on est au-delà du dernier point (avec tolérance), c'est 0
-            if (dist > points[points.length - 1].d + epsilon) return 0;
-            // Si on est en-deçà du premier point (avec tolérance), c'est 0
-            if (dist < points[0].d - epsilon) return 0; 
-
-            for (let i = 0; i < points.length - 1; i++) {
-                const p1 = points[i];
-                const p2 = points[i+1];
-                // Vérification inclusive avec tolérance
-                if (dist >= p1.d - epsilon && dist <= p2.d + epsilon) {
-                     const slope = (p2.l - p1.l) / (p2.d - p1.d);
-                     const interpolated = p1.l + slope * (dist - p1.d);
-                     return Math.floor(interpolated * 1000); 
-                }
-            }
-            
-            // Filet de sécurité : Si on est pile sur le dernier point (cas où la boucle finit juste avant)
-            if (Math.abs(dist - points[points.length - 1].d) < epsilon) {
-                return Math.floor(points[points.length - 1].l * 1000);
-            }
-            
-            return 0;
-        }
-
-        if (specificBoom) { return checkBoom(specificBoom, specificCwt); } 
-        else {
-            let maxCap = 0;
-            let cwtsToCheck = [null];
-            if (machine.hasCounterweights) {
-                cwtsToCheck = specificCwt ? [specificCwt] : machine.counterweights;
-            }
-            
-            cwtsToCheck.forEach(cwt => {
-                  machine.boomLengths.forEach(len => {
-                    const cap = checkBoom(len, cwt);
-                    if (cap > maxCap) maxCap = cap;
-                });
-            });
-            return maxCap;
-        }
-    }
-    // 2. TELESCOPIQUES SIMPLES (Zone unique)
-    else if (machine.mode === 'zone') {
-        let foundLoad = 0;
-        if (machine.zones) {
-            for (let zone of machine.zones) {
-                if (isPointInPolygon(dist, height, zone.points)) {
-                    if (zone.load > foundLoad) foundLoad = zone.load;
-                }
-            }
-        }
-        return foundLoad;
-    } 
-    // 3. TELESCOPIQUES MULTI-OUTILS (Nouveau)
-    else if (machine.mode === 'zone_multi_tool') {
-        let foundLoad = 0;
-        // On récupère les zones de l'outil sélectionné ou du premier par défaut
-        let activeZones = [];
-        if (specificTool && machine.charts[specificTool]) {
-            activeZones = machine.charts[specificTool].zones;
-        } else if (machine.tools && machine.tools.length > 0) {
-            activeZones = machine.charts[machine.tools[0]].zones;
-        }
-
-        if (activeZones) {
-            for (let zone of activeZones) {
-                if (isPointInPolygon(dist, height, zone.points)) {
-                    if (zone.load > foundLoad) foundLoad = zone.load;
-                }
-            }
-        }
-        return foundLoad;
-    }
-
-    return 0;
 };
 
 // --- EXPORTS PDF / EXCEL ---
@@ -549,19 +440,20 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [category, setCategory] = useState('telehandler');
     const [selectedMachineId, setSelectedMachineId] = useState(null);
     
-    // Inputs Utilisateur
+    // Inputs
     const [inputLoad, setInputLoad] = useState(1000); 
     const [inputDist, setInputDist] = useState(5); 
     const [inputHeight, setInputHeight] = useState(2);
     
-    // Configuration Machine
+    // Configuration
     const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
     const [selectedCwt, setSelectedCwt] = useState(null);
     const [selectedTool, setSelectedTool] = useState(null);
+    
     const [isAutoCwt, setIsAutoCwt] = useState(false); 
     const [isUploading, setIsUploading] = useState(false);
 
-    // Chargement de la dernière machine utilisée
+    // Initialisation & Chargement
     useEffect(() => {
         const autoSelected = localStorage.getItem(SELECTED_CRANE_KEY);
         if (autoSelected) {
@@ -570,7 +462,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [allMachines]); 
 
-    // Filtrage des machines
     const filteredMachines = useMemo(() => {
         return allMachines
             .filter(m => m.category === category)
@@ -580,29 +471,23 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 if (a.source === 'local' && b.source === 'local') {
                     const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
                     const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                    return dateB - dateA;
+                    return dateB - dateA; 
                 }
                 return a.name.localeCompare(b.name);
             });
     }, [allMachines, category]);
 
-    // Sélection par défaut
-    useEffect(() => { 
-        if (filteredMachines.length > 0 && (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId))) { 
-            setSelectedMachineId(filteredMachines[0].id); 
-        } 
-    }, [category, filteredMachines, selectedMachineId]);
+    useEffect(() => { if (filteredMachines.length > 0 && (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId))) { setSelectedMachineId(filteredMachines[0].id); } }, [category, filteredMachines, selectedMachineId]);
 
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
     
-    // Initialisation des paramètres de la machine (Flèche, Cwt, Outils)
+    // Params initiaux
     useEffect(() => { 
         if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
             setSelectedBoomLen(machine.boomLengths[0]); 
         } 
         if(machine?.hasCounterweights && machine?.counterweights) { 
             if (!isAutoCwt) { 
-                // Par défaut : le plus lourd
                 const sorted = [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b));
                 setSelectedCwt(sorted[sorted.length - 1]); 
             }
@@ -610,54 +495,46 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
     }, [machine]);
 
-    // --- LOGIQUE CONTREPOIDS AUTO ---
+    // --- LOGIQUE AUTO CWT ---
     useEffect(() => {
         if (isAutoCwt && machine && machine.hasCounterweights) {
             const sortedCwts = [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b));
             let bestCwt = null; 
             let found = false;
 
-            // On cherche le plus léger qui VALIDE la charge
             for (const cwt of sortedCwts) {
-                // Appel au nouveau Moteur de Calcul
+                // On utilise le CraneCalculator qui renvoie 0 si on est dans un "trou" (>10m)
                 const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, cwt, selectedTool);
                 
-                if (cap >= inputLoad - 1) { // Tolérance 1kg
+                if (cap >= inputLoad - 1) { 
                     bestCwt = cwt; 
                     found = true; 
                     break; 
                 }
             }
-
-            // Si aucun ne passe, on met le plus lourd (pour montrer la capacité max possible)
-            if (!found && sortedCwts.length > 0) {
-                bestCwt = sortedCwts[sortedCwts.length - 1];
-            }
-
+            if (!found && sortedCwts.length > 0) { bestCwt = sortedCwts[sortedCwts.length - 1]; }
             if (bestCwt && bestCwt !== selectedCwt) { setSelectedCwt(bestCwt); }
         }
     }, [isAutoCwt, inputLoad, inputDist, inputHeight, selectedBoomLen, machine]);
 
-    // --- CALCULS POUR AFFICHAGE ---
+    // Calcul Final
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
-
-    // --- SLIDER INTELLIGENT (Anti-Saut) ---
-    // Le Max est : soit 105% de la capacité réelle, soit ce que l'utilisateur a déjà saisi (si c'est plus grand).
-    // Comme ça, si l'utilisateur met 400t, le max s'adapte à 400t et ne "saute" pas en arrière.
+    
+    // --- CORRECTION SLIDER MASSE (ANTI-SAUT) ---
+    // Le Max est : 105% de la capacité OU la valeur saisie par l'utilisateur (si elle est plus grande)
     const sliderMax = Math.max(
         safeLoad > 0 ? Math.ceil(safeLoad * 1.05) : 5000, 
         inputLoad, 
         1000
     );
 
-    // Géométrie Tête de flèche
+    // Géométrie
     const tipHeight = useMemo(() => {
         if (!machine) return 10;
         let b = 0;
         if (machine.mode === 'multi_chart') b = selectedBoomLen;
         else b = Math.sqrt(Math.pow(Math.max(inputDist, machine.maxReach), 2) + Math.pow(machine.maxHeight, 2));
-        
         if (!b || b < inputDist) return 0;
         const h = Math.sqrt(Math.pow(b, 2) - Math.pow(inputDist, 2));
         return isNaN(h) ? 0 : h + 1.5;
@@ -668,34 +545,63 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const isSafe = isLoadSafe && isHeightValid;
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-    const handleExcelUpload = (e) => { /* ... (Garder votre code d'import existant) ... */ };
-    const downloadTemplate = () => { /* ... (Garder votre code existant) ... */ };
+    const handleExcelUpload = (e) => { /* Code inchangé */ 
+        const file = e.target.files[0]; if (!file) return; setIsUploading(true); const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const bstr = evt.target.result; const wb = XLSX.read(bstr, { type: 'binary' });
+                let isMultiSheet = wb.SheetNames.length > 1; let useCwtMode = isMultiSheet;
+                if (!useCwtMode) {
+                    const firstSheet = wb.SheetNames[0].trim();
+                    const isGenericName = /^(sheet|feuille)\d+$/i.test(firstSheet);
+                    const looksLikeCwt = /^(\d+(\.\d+)?)[tT]?$/.test(firstSheet);
+                    if (!isGenericName && looksLikeCwt) { useCwtMode = true; }
+                }
+                let counterweights = []; let charts = {}; let boomLengthsGlobal = new Set(); let maxLoadFound = 0; let maxReachFound = 0;
+                const parseSheet = (sheetName) => {
+                     const ws = wb.Sheets[sheetName]; const data = XLSX.utils.sheet_to_json(ws, { header: 1 }); if(data.length < 2) return null;
+                     const headerRow = data[0]; const colToBoom = {}; const sheetCharts = {};
+                     for (let c = 1; c < headerRow.length; c++) { const val = parseFloat(headerRow[c]); if (!isNaN(val)) { boomLengthsGlobal.add(val); colToBoom[c] = val; sheetCharts[val] = { std: [] }; } }
+                     for (let r = 1; r < data.length; r++) {
+                         const row = data[r]; const radius = parseFloat(row[0]);
+                         if (!isNaN(radius)) {
+                             if (radius > maxReachFound) maxReachFound = radius;
+                             for (let c = 1; c < row.length; c++) { const loadVal = parseFloat(row[c]); const boomLen = colToBoom[c]; if (boomLen && !isNaN(loadVal)) { sheetCharts[boomLen].std.push({ d: radius, l: loadVal }); if (loadVal > maxLoadFound) maxLoadFound = loadVal; } }
+                         }
+                     }
+                     return sheetCharts;
+                };
+                if (useCwtMode) { wb.SheetNames.forEach(sheetName => { const cwtData = parseSheet(sheetName); if(cwtData) { counterweights.push(sheetName); charts[sheetName] = cwtData; } }); } else { charts = parseSheet(wb.SheetNames[0]); }
+                const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
+                if (boomLengths.length === 0) throw new Error("Aucune colonne de flèche valide trouvée.");
+                const newMachine = { id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, boomLengths: boomLengths, charts: charts, createdAt: new Date().toISOString(), isCustom: true };
+                onSaveLocal([newMachine]); setSelectedMachineId(newMachine.id); alert("Machine importée !");
+            } catch (error) { alert("Erreur import: " + error.message); } finally { setIsUploading(false); e.target.value = null; }
+        }; reader.readAsBinaryString(file);
+    };
+    
+    const downloadTemplate = () => { /* Code inchangé */
+        const wb = XLSX.utils.book_new(); const sheets = [ { name: "0t", multiplier: 0.5 }, { name: "12t", multiplier: 0.8 }, { name: "24t", multiplier: 1.0 } ]; const baseData = [ ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], [3, 50, 40, null, null], [10, 20, 18, 15, 12], [30, null, null, 4, 3] ];
+        sheets.forEach(sheet => { const data = baseData.map((row, i) => { if (i === 0) return row; return row.map((cell, j) => { if (j === 0 || cell === null) return cell; return Number((cell * sheet.multiplier).toFixed(1)); }); }); const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, sheet.name); }); XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
+    };
 
-    // --- GRAPHIQUE 2D ---
     const GraphChart2D = () => {
         if(!machine) return null;
         const width = 600; const height = 450; const padding = 50; 
         const maxX = machine.maxReach * 1.1; const maxY = machine.maxHeight * 1.1; 
         const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); 
         const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
-        
-        const hookX = scaleX(inputDist); 
-        const hookY = scaleY(inputHeight);
-        
-        let tipY = scaleY(0);
+        const hookX = scaleX(inputDist); const hookY = scaleY(inputHeight);
+        let tipY = scaleY(0); 
         if (machine.mode === 'multi_chart') {
             const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
             tipY = scaleY(isNaN(hGeo) ? 0 : hGeo);
         } else { tipY = scaleY(tipHeight); }
-
-        const gridStep = machine.category === 'telehandler' ? 1 : 10;
-        
+        const gridStep = machine.category === 'telehandler' ? 1 : (maxX > 60 ? 10 : 5);
         let zonesToDraw = [];
         if (machine.mode === 'zone') zonesToDraw = machine.zones;
         else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) zonesToDraw = machine.charts[selectedTool].zones;
-
-        const statusColor = isSafe ? "#16a34a" : "#dc2626"; 
-        const statusFill = isSafe ? "#22c55e" : "#ef4444";
+        const statusColor = isSafe ? "#16a34a" : "#dc2626"; const statusFill = isSafe ? "#22c55e" : "#ef4444";
 
         return (
         <div className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
@@ -704,10 +610,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 <rect width="100%" height="100%" fill="white"/><rect x={padding} y={padding} width={width-2*padding} height={height-2*padding} fill="url(#grid)" /><line x1={padding} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" /><line x1={padding} y1={padding} x2={padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
                 {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={padding - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
-                
                 {zonesToDraw.map(z => ( <g key={z.id}><path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />{z.points.length > 2 && (<text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[2][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9">{z.load/1000}t</text>)}</g> ))}
                 {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
-                
                 <line x1={scaleX(0)} y1={scaleY(0)} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="3" opacity="0.8" />
                 <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
                 <circle cx={tipX} cy={tipY} r="6" fill={statusFill} stroke="white" strokeWidth="2" />
@@ -783,7 +687,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                             )}
 
-                            {/* SLIDER MASSE (BLOQUANT A LA LIMITE) */}
                             <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
@@ -797,6 +700,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     <div className="absolute top-1/2 left-0 w-full h-3 bg-slate-200 rounded-full -translate-y-1/2 overflow-hidden z-10 pointer-events-none">
                                         <div style={{ width: `${((inputHeight - 0) / (machine?.maxHeight + 5 - 0)) * 100}%` }} className="h-full bg-[#004e98] transition-all duration-100 ease-out"></div>
                                     </div>
+                                    <div style={{ left: `calc(${((inputHeight - 0) / (machine?.maxHeight + 5 - 0)) * 100}% - 12px)` }} className="absolute top-1/2 w-6 h-6 bg-[#004e98] border-2 border-white rounded-full shadow-md -translate-y-1/2 z-10 pointer-events-none transition-all duration-100 ease-out"></div>
                                 </div>
                             </div>
 
