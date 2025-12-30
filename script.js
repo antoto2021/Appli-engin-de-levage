@@ -628,6 +628,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); 
         const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
         const hookX = scaleX(inputDist); const hookY = scaleY(inputHeight);
+		const tipX = hookX;
         let tipY = scaleY(0); 
         if (machine.mode === 'multi_chart') {
             const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
