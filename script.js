@@ -251,7 +251,7 @@ const CustomRange = ({ label, value, min, max, step, onChange, unit = "", maxLab
             </div>
             <div className="flex justify-between text-xs text-slate-400 mt-1 font-medium">
                 <span>{min}{unit}</span>
-                <span>{maxLabel || `Max : ${Math.round(max)}${unit}`}</span>
+                <span>{maxLabel || `Max (à 110% d'utilisation) : ${Math.round(max)}${unit}`}</span>
             </div>
         </div>
     );
