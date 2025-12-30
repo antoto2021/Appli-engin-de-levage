@@ -463,7 +463,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [selectedCwt, setSelectedCwt] = useState(null);
     const [selectedTool, setSelectedTool] = useState(null);
     
-    // États de sélection automatique (AutoHeight supprimé)
     const [isAutoCwt, setIsAutoCwt] = useState(false); 
     const [isUploading, setIsUploading] = useState(false);
 
@@ -505,8 +504,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
     }, [machine]);
 
-    // --- CALCUL GEOMETRIQUE (Tête de flèche pour la LOGIQUE) ---
-    // Ce calcul conserve le décalage de pivot (+1.5m) pour la logique de sécurité
+    // --- CALCUL GEOMETRIQUE ---
     const tipHeightLogical = useMemo(() => {
         if (!machine) return 10;
         let boomLen = 0;
@@ -515,7 +513,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
         if (!boomLen || boomLen < inputDist) return 0; 
         const h = Math.sqrt(Math.pow(boomLen, 2) - Math.pow(inputDist, 2));
-        return isNaN(h) ? 0 : h + 1.5; // Offset pivot conservé ici pour la logique
+        return isNaN(h) ? 0 : h + 1.5; 
     }, [machine, selectedBoomLen, inputDist]);
 
     // Auto CWT logic
@@ -540,16 +538,99 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     
     useEffect(() => { if (inputLoad > finalMassSliderMax) { setInputLoad(Math.floor(finalMassSliderMax)); } }, [finalMassSliderMax, inputLoad]);
     
-    // Vérification géométrique (On compare la hauteur demandée à la hauteur logique max)
     const isHeightValid = machine?.mode === 'multi_chart' ? (inputHeight <= tipHeightLogical) : (inputHeight <= machine?.maxHeight);
-    
     const isLoadSafe = inputLoad <= safeLoad && safeLoad > 0;
     const isSafe = isLoadSafe && isHeightValid;
-    
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-    const handleExcelUpload = (e) => { /* Code inchangé */ };
-    const downloadTemplate = () => { /* Code inchangé */ };
+    // --- FONCTION IMPORT EXCEL RÉTABLIE ---
+    const handleExcelUpload = (e) => {
+        const file = e.target.files[0]; if (!file) return; setIsUploading(true); const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const bstr = evt.target.result; const wb = XLSX.read(bstr, { type: 'binary' });
+                let isMultiSheet = wb.SheetNames.length > 1; let useCwtMode = isMultiSheet;
+                
+                // Détection auto si feuille unique ressemble à un contrepoids (ex: "175")
+                if (!useCwtMode) {
+                    const firstSheet = wb.SheetNames[0].trim();
+                    const isGenericName = /^(sheet|feuille)\d+$/i.test(firstSheet);
+                    const looksLikeCwt = /^(\d+(\.\d+)?)[tT]?$/.test(firstSheet);
+                    if (!isGenericName && looksLikeCwt) { useCwtMode = true; }
+                }
+
+                let counterweights = []; let charts = {}; let boomLengthsGlobal = new Set(); let maxLoadFound = 0; let maxReachFound = 0;
+                
+                const parseSheet = (sheetName) => {
+                     const ws = wb.Sheets[sheetName]; const data = XLSX.utils.sheet_to_json(ws, { header: 1 }); if(data.length < 2) return null;
+                     const headerRow = data[0]; const colToBoom = {}; const sheetCharts = {};
+                     
+                     // Analyse En-têtes (Flèches)
+                     for (let c = 1; c < headerRow.length; c++) { 
+                         const val = parseFloat(headerRow[c]); 
+                         if (!isNaN(val)) { 
+                             boomLengthsGlobal.add(val); colToBoom[c] = val; sheetCharts[val] = { std: [] }; 
+                         } 
+                     }
+                     
+                     // Analyse Données (Portées / Charges)
+                     for (let r = 1; r < data.length; r++) {
+                         const row = data[r]; const radius = parseFloat(row[0]);
+                         if (!isNaN(radius)) {
+                             if (radius > maxReachFound) maxReachFound = radius;
+                             for (let c = 1; c < row.length; c++) { 
+                                 const loadVal = parseFloat(row[c]); 
+                                 const boomLen = colToBoom[c]; 
+                                 if (boomLen && !isNaN(loadVal)) { 
+                                     sheetCharts[boomLen].std.push({ d: radius, l: loadVal }); 
+                                     if (loadVal > maxLoadFound) maxLoadFound = loadVal; 
+                                 } 
+                             }
+                         }
+                     }
+                     return sheetCharts;
+                };
+
+                if (useCwtMode) { 
+                    wb.SheetNames.forEach(sheetName => { 
+                        const cwtData = parseSheet(sheetName); 
+                        if(cwtData) { counterweights.push(sheetName); charts[sheetName] = cwtData; } 
+                    }); 
+                } else { 
+                    charts = parseSheet(wb.SheetNames[0]); 
+                }
+                
+                const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
+                if (boomLengths.length === 0) throw new Error("Aucune colonne de flèche valide trouvée.");
+
+                const newMachine = { 
+                    id: "custom_" + Date.now(), 
+                    source: "local", 
+                    category: category, // Prend la catégorie active (ex: crawler_crane)
+                    name: `${file.name.replace(/\.[^/.]+$/, "")}`, 
+                    type: "crane", 
+                    mode: "multi_chart", 
+                    maxLoad: maxLoadFound * 1000, 
+                    maxReach: maxReachFound, 
+                    maxHeight: Math.max(...boomLengths) + 2, 
+                    hasTelescoping: false, 
+                    hasCounterweights: useCwtMode, 
+                    counterweights: useCwtMode ? counterweights : null, 
+                    boomLengths: boomLengths, 
+                    charts: charts, 
+                    createdAt: new Date().toISOString(), 
+                    isCustom: true 
+                };
+                
+                onSaveLocal([newMachine]); setSelectedMachineId(newMachine.id); alert("Machine importée et sauvegardée localement !");
+            } catch (error) { alert("Erreur import: " + error.message); } finally { setIsUploading(false); e.target.value = null; }
+        }; reader.readAsBinaryString(file);
+    };
+
+    const downloadTemplate = () => {
+        const wb = XLSX.utils.book_new(); const sheets = [ { name: "0t", multiplier: 0.5 }, { name: "12t", multiplier: 0.8 }, { name: "24t", multiplier: 1.0 } ]; const baseData = [ ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], [3, 50, 40, null, null], [10, 20, 18, 15, 12], [30, null, null, 4, 3] ];
+        sheets.forEach(sheet => { const data = baseData.map((row, i) => { if (i === 0) return row; return row.map((cell, j) => { if (j === 0 || cell === null) return cell; return Number((cell * sheet.multiplier).toFixed(1)); }); }); const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, sheet.name); }); XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
+    };
 
     // --- GRAPHIQUE 2D ---
     const GraphChart2D = () => {
@@ -560,24 +641,16 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); 
         const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
         
-        // Coordonnées du Crochet (Défini par l'utilisateur)
         const hookX = scaleX(inputDist);
         const hookY = scaleY(inputHeight);
         
-        // Coordonnées de la Tête de flèche (Pour le dessin)
         let tipX = hookX;
-        let tipY = scaleY(0); // Par défaut au sol si problème
+        let tipY = scaleY(0); 
 
         if (machine.mode === 'multi_chart') {
-            // CORRECTION MAJEURE ICI :
-            // Pour le dessin, on calcule la hauteur géométrique PURE (sans offset de pivot)
-            // pour qu'elle tombe exactement sur l'arc de cercle SVG qui part de 0.
             const geometricTipHeight = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
-            
-            // Si NaN (portée > flèche), on met au sol, sinon on met à la hauteur exacte
             tipY = scaleY(isNaN(geometricTipHeight) ? 0 : geometricTipHeight);
         } else {
-            // Pour les télescopiques, on utilise la hauteur logique calculée
             tipY = scaleY(tipHeightLogical);
         }
 
@@ -600,20 +673,11 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={padding - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
                 
                 {zonesToDraw.map(z => ( <g key={z.id}><path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />{z.points.length > 2 && (<text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[2][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9">{z.load/1000}t</text>)}</g> ))}
-                
-                {/* COURBES (Grues Mobiles) - Dessin des arcs */}
                 {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
                 
-                {/* 1. BRAS DE GRUE */}
                 <line x1={scaleX(0)} y1={scaleY(0)} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="3" opacity="0.8" />
-                
-                {/* 2. CÂBLE */}
                 <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
-
-                {/* 3. TÊTE DE FLÈCHE (Sur la courbe exacte) */}
                 <circle cx={tipX} cy={tipY} r="6" fill={statusFill} stroke="white" strokeWidth="2" />
-
-                {/* 4. CROCHET */}
                 <circle cx={hookX} cy={hookY} r="6" fill="white" stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text><text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
@@ -690,7 +754,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={finalMassSliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
-                            {/* Slider Hauteur SANS bouton Auto */}
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
                                     <label className="text-lg font-bold text-slate-700">Hauteur Crochet</label>
@@ -733,6 +796,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         </div>
     );
 };
+
 const App = () => {
     const [page, setPage] = useState('home');
     const [localMachines, setLocalMachines] = useState([]); const [externalMachines, setExternalMachines] = useState([]);
