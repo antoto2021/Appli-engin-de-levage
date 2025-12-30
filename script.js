@@ -54,22 +54,21 @@ const isPointInPolygon = (x, y, polygon) => {
     return inside;
 };
 
-// --- MOTEUR DE CALCUL ROBUSTE (V3) ---
+// --- MOTEUR DE CALCUL CENTRALISÉ ---
 const CraneCalculator = {
-    // Calcul la capacité pour une config précise
     getCapacity: (machine, dist, height, boom, cwt, tool) => {
+        // 1. Sécurité anti-crash (Si la machine n'est pas encore chargée)
         if (!machine) return 0;
         
-        // 1. Limites physiques absolues
+        // 2. Limites physiques de base
         if (dist > machine.maxReach + 2) return 0;
 
-        // 2. Mode GRUES MOBILES (Abaques courbes)
+        // 3. Cas des GRUES MOBILES (Abaques Courbes)
         if (machine.mode === 'multi_chart') {
-            // Vérification géométrique de base (La flèche est-elle assez longue ?)
             const reqReachSq = (dist * dist) + (height * height);
-            if (reqReachSq > (boom * boom) + 0.1) return 0;
+            if (reqReachSq > (boom * boom) + 0.1) return 0; // Flèche trop courte
 
-            // Récupération des points
+            // Récupération des points de la courbe
             let points = [];
             if (machine.hasCounterweights && cwt) {
                 points = machine.charts[cwt]?.[boom]?.std;
@@ -79,25 +78,22 @@ const CraneCalculator = {
 
             if (!points || points.length === 0) return 0;
 
-            // --- ÉTAPE 1 : RECHERCHE EXACTE (Priorité absolue) ---
-            // Si on est pile sur un point (à 5cm près), on renvoie la valeur.
-            // Cela corrige le bug du "60m" qui était rejeté à cause du trou avant lui.
-            const exactPoint = points.find(p => Math.abs(p.d - dist) <= 0.05);
+            // A. RÈGLE DU POINT EXACT (Pour le cas 60m / 33.5t)
+            // Si on est pile sur un point (à 10cm près), on le prend direct.
+            const exactPoint = points.find(p => Math.abs(p.d - dist) <= 0.1);
             if (exactPoint) return Math.floor(exactPoint.l * 1000);
 
-            // --- ÉTAPE 2 : INTERPOLATION SÉCURISÉE ---
-            // On cherche le segment [p1, p2] qui contient la distance
+            // B. RÈGLE DE L'INTERPOLATION (Pour les valeurs entre deux)
             for (let i = 0; i < points.length - 1; i++) {
                 const p1 = points[i];
                 const p2 = points[i+1];
 
                 if (dist > p1.d && dist < p2.d) {
-                    // SÉCURITÉ "FANTÔME" : 
-                    // Si l'écart entre les deux points est > 10m (ex: 11m -> 60m), 
-                    // c'est un trou dans l'abaque. On renvoie 0.
+                    // SÉCURITÉ ANTI-TROU (Pour le cas 14m fantôme)
+                    // Si l'écart entre les deux points est > 10m, c'est un vide.
                     if ((p2.d - p1.d) > 10) return 0;
 
-                    // Sinon, interpolation linéaire classique
+                    // Sinon, calcul proportionnel
                     const slope = (p2.l - p1.l) / (p2.d - p1.d);
                     const interpolated = p1.l + slope * (dist - p1.d);
                     return Math.floor(interpolated * 1000);
@@ -106,20 +102,23 @@ const CraneCalculator = {
             return 0; // Hors abaque
         }
 
-        // 3. Mode TÉLESCOPIQUES (Zones)
+        // 4. Cas des TÉLESCOPIQUES (Zones de couleur)
         if (machine.mode === 'zone' || machine.mode === 'zone_multi_tool') {
             let activeZones = [];
             if (machine.mode === 'zone_multi_tool') {
+                // Choix des zones selon l'outil
                 if (tool && machine.charts[tool]) activeZones = machine.charts[tool].zones;
-                else if (machine.tools?.length > 0) activeZones = machine.charts[machine.tools[0]].zones;
+                else if (machine.tools?.length > 0 && machine.charts[machine.tools[0]]) {
+                    activeZones = machine.charts[machine.tools[0]].zones;
+                }
             } else {
                 activeZones = machine.zones;
             }
 
             let foundLoad = 0;
             if (activeZones) {
-                // Fonction utilitaire pour point dans polygone (rayon, hauteur)
-                // (Assurez-vous que isPointInPolygon est définie dans votre code, sinon je peux la fournir)
+                // On suppose que la fonction isPointInPolygon est disponible globalement ou importée
+                // Si elle n'est pas définie ici, assurez-vous qu'elle existe dans votre fichier script.js
                 for (let zone of activeZones) {
                     if (typeof isPointInPolygon === 'function' && isPointInPolygon(dist, height, zone.points)) {
                         if (zone.load > foundLoad) foundLoad = zone.load;
@@ -550,19 +549,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [category, setCategory] = useState('telehandler');
     const [selectedMachineId, setSelectedMachineId] = useState(null);
     
-    // Inputs
+    // Inputs Utilisateur
     const [inputLoad, setInputLoad] = useState(1000); 
     const [inputDist, setInputDist] = useState(5); 
     const [inputHeight, setInputHeight] = useState(2);
     
-    // Configuration
+    // Configuration Machine
     const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
     const [selectedCwt, setSelectedCwt] = useState(null);
     const [selectedTool, setSelectedTool] = useState(null);
     const [isAutoCwt, setIsAutoCwt] = useState(false); 
     const [isUploading, setIsUploading] = useState(false);
 
-    // Chargement initial
+    // Chargement de la dernière machine utilisée
     useEffect(() => {
         const autoSelected = localStorage.getItem(SELECTED_CRANE_KEY);
         if (autoSelected) {
@@ -571,56 +570,67 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [allMachines]); 
 
-    // Filtrage
+    // Filtrage des machines
     const filteredMachines = useMemo(() => {
         return allMachines
             .filter(m => m.category === category)
             .sort((a, b) => {
                 if (a.source === 'local' && b.source !== 'local') return -1;
                 if (a.source !== 'local' && b.source === 'local') return 1;
+                if (a.source === 'local' && b.source === 'local') {
+                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return dateB - dateA;
+                }
                 return a.name.localeCompare(b.name);
             });
     }, [allMachines, category]);
 
-    useEffect(() => { if (filteredMachines.length > 0 && (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId))) { setSelectedMachineId(filteredMachines[0].id); } }, [category, filteredMachines, selectedMachineId]);
+    // Sélection par défaut
+    useEffect(() => { 
+        if (filteredMachines.length > 0 && (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId))) { 
+            setSelectedMachineId(filteredMachines[0].id); 
+        } 
+    }, [category, filteredMachines, selectedMachineId]);
 
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
     
-    // Init Machine Params
+    // Initialisation des paramètres de la machine (Flèche, Cwt, Outils)
     useEffect(() => { 
         if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
             setSelectedBoomLen(machine.boomLengths[0]); 
         } 
         if(machine?.hasCounterweights && machine?.counterweights) { 
             if (!isAutoCwt) { 
+                // Par défaut : le plus lourd
                 const sorted = [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b));
-                setSelectedCwt(sorted[sorted.length - 1]); // Plus lourd par défaut
+                setSelectedCwt(sorted[sorted.length - 1]); 
             }
         } else { setSelectedCwt(null); } 
         if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
     }, [machine]);
 
-    // --- LOGIQUE AUTO CWT (Utilise CraneCalculator) ---
+    // --- LOGIQUE CONTREPOIDS AUTO ---
     useEffect(() => {
         if (isAutoCwt && machine && machine.hasCounterweights) {
             const sortedCwts = [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b));
             let bestCwt = null; 
-            let bestCap = -1;
+            let found = false;
 
-            // On cherche le contrepoids le plus léger qui VALIDE la charge
+            // On cherche le plus léger qui VALIDE la charge
             for (const cwt of sortedCwts) {
+                // Appel au nouveau Moteur de Calcul
                 const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, cwt, selectedTool);
                 
-                // Si ce contrepoids permet de lever la charge (avec petite tolérance)
-                if (cap >= inputLoad - 1) { 
+                if (cap >= inputLoad - 1) { // Tolérance 1kg
                     bestCwt = cwt; 
-                    bestCap = cap;
-                    break; // Trouvé ! On arrête.
+                    found = true; 
+                    break; 
                 }
             }
 
-            // Si AUCUN ne marche, on prend le plus lourd pour montrer la capacité max possible (même si c'est rouge)
-            if (!bestCwt && sortedCwts.length > 0) {
+            // Si aucun ne passe, on met le plus lourd (pour montrer la capacité max possible)
+            if (!found && sortedCwts.length > 0) {
                 bestCwt = sortedCwts[sortedCwts.length - 1];
             }
 
@@ -628,29 +638,26 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [isAutoCwt, inputLoad, inputDist, inputHeight, selectedBoomLen, machine]);
 
-    // --- CALCUL FINAL POUR AFFICHAGE ---
+    // --- CALCULS POUR AFFICHAGE ---
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
-    const safeLoad = Math.floor(allowedLoad); // Capacité autorisée en kg
+    const safeLoad = Math.floor(allowedLoad); 
 
-    // --- LOGIQUE SLIDER MASSE (BLOQUANT) ---
-    // Limite stricte : 105% de la capacité.
-    // Si capacité nulle (0), on met une limite minimale (ex: 1000kg) pour ne pas casser l'UI
-    const sliderLimit = safeLoad > 0 ? Math.floor(safeLoad * 1.05) : 5000; 
+    // --- SLIDER INTELLIGENT (Anti-Saut) ---
+    // Le Max est : soit 105% de la capacité réelle, soit ce que l'utilisateur a déjà saisi (si c'est plus grand).
+    // Comme ça, si l'utilisateur met 400t, le max s'adapte à 400t et ne "saute" pas en arrière.
+    const sliderMax = Math.max(
+        safeLoad > 0 ? Math.ceil(safeLoad * 1.05) : 5000, 
+        inputLoad, 
+        1000
+    );
 
-    // Si la valeur actuelle dépasse la nouvelle limite (ex: on change de flèche), on rabat la valeur
-    // SAUF si c'est l'utilisateur qui est en train de glisser (difficile à détecter, donc on rabat par sécurité)
-    useEffect(() => {
-        if (inputLoad > sliderLimit) {
-            setInputLoad(sliderLimit);
-        }
-    }, [sliderLimit]); // Se déclenche quand la limite change (changement de config)
-
-    // Géométrie Tête de flèche (pour Graphique et hauteur max)
+    // Géométrie Tête de flèche
     const tipHeight = useMemo(() => {
         if (!machine) return 10;
         let b = 0;
         if (machine.mode === 'multi_chart') b = selectedBoomLen;
         else b = Math.sqrt(Math.pow(Math.max(inputDist, machine.maxReach), 2) + Math.pow(machine.maxHeight, 2));
+        
         if (!b || b < inputDist) return 0;
         const h = Math.sqrt(Math.pow(b, 2) - Math.pow(inputDist, 2));
         return isNaN(h) ? 0 : h + 1.5;
@@ -661,17 +668,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const isSafe = isLoadSafe && isHeightValid;
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-    const handleExcelUpload = (e) => { /* Garder votre fonction existante */ }; 
-    const downloadTemplate = () => { /* Garder votre fonction existante */ };
+    const handleExcelUpload = (e) => { /* ... (Garder votre code d'import existant) ... */ };
+    const downloadTemplate = () => { /* ... (Garder votre code existant) ... */ };
 
-    // --- GRAPHIQUE ---
+    // --- GRAPHIQUE 2D ---
     const GraphChart2D = () => {
         if(!machine) return null;
         const width = 600; const height = 450; const padding = 50; 
         const maxX = machine.maxReach * 1.1; const maxY = machine.maxHeight * 1.1; 
         const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); 
         const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
-        const hookX = scaleX(inputDist); const hookY = scaleY(inputHeight);
+        
+        const hookX = scaleX(inputDist); 
+        const hookY = scaleY(inputHeight);
         
         let tipY = scaleY(0);
         if (machine.mode === 'multi_chart') {
@@ -681,12 +690,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
         const gridStep = machine.category === 'telehandler' ? 1 : 10;
         
-        // Récupération des zones pour affichage
         let zonesToDraw = [];
         if (machine.mode === 'zone') zonesToDraw = machine.zones;
         else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) zonesToDraw = machine.charts[selectedTool].zones;
 
-        const statusColor = isSafe ? "#16a34a" : "#dc2626"; const statusFill = isSafe ? "#22c55e" : "#ef4444";
+        const statusColor = isSafe ? "#16a34a" : "#dc2626"; 
+        const statusFill = isSafe ? "#22c55e" : "#ef4444";
 
         return (
         <div className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
@@ -775,7 +784,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             )}
 
                             {/* SLIDER MASSE (BLOQUANT A LA LIMITE) */}
-                            <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderLimit/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
+                            <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
