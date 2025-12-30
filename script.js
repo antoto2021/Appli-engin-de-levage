@@ -70,26 +70,44 @@ const calculateMachineCapacity = (machine, dist, height, specificBoom = null, sp
             else { points = machine.charts[boomLen]?.std; }
             
             if (!points || points.length === 0) return 0;
-            if (dist > points[points.length - 1].d) return 0;
-            if (dist < points[0].d) return 0; 
+            
+            // CORRECTION 1 : Cas d'un point unique (ex: LG-1750 flèche 21m)
+            // Si l'abaque n'a qu'un seul point, on ne valide que si on est pile dessus (avec tolérance)
+            if (points.length === 1) {
+                if (Math.abs(dist - points[0].d) < 0.1) return Math.floor(points[0].l * 1000);
+                return 0;
+            }
+
+            // CORRECTION 2 : Tolérance pour les frontières (ex: 60m pile)
+            const epsilon = 0.05; 
+
+            // Si on est au-delà du dernier point (avec tolérance), c'est 0
+            if (dist > points[points.length - 1].d + epsilon) return 0;
+            // Si on est en-deçà du premier point (avec tolérance), c'est 0
+            if (dist < points[0].d - epsilon) return 0; 
 
             for (let i = 0; i < points.length - 1; i++) {
                 const p1 = points[i];
                 const p2 = points[i+1];
-                if (dist >= p1.d && dist <= p2.d) {
+                // Vérification inclusive avec tolérance
+                if (dist >= p1.d - epsilon && dist <= p2.d + epsilon) {
                      const slope = (p2.l - p1.l) / (p2.d - p1.d);
                      const interpolated = p1.l + slope * (dist - p1.d);
                      return Math.floor(interpolated * 1000); 
                 }
             }
+            
+            // Filet de sécurité : Si on est pile sur le dernier point (cas où la boucle finit juste avant)
+            if (Math.abs(dist - points[points.length - 1].d) < epsilon) {
+                return Math.floor(points[points.length - 1].l * 1000);
+            }
+            
             return 0;
         }
 
         if (specificBoom) { return checkBoom(specificBoom, specificCwt); } 
         else {
             let maxCap = 0;
-            // CORRECTION ICI : Si un contrepoids spécifique est demandé, on ne teste que celui-là.
-            // Sinon, on teste tous les contrepoids disponibles.
             let cwtsToCheck = [null];
             if (machine.hasCounterweights) {
                 cwtsToCheck = specificCwt ? [specificCwt] : machine.counterweights;
