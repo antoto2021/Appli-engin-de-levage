@@ -461,9 +461,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     // Configuration Machine
     const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
     const [selectedCwt, setSelectedCwt] = useState(null);
-    const [selectedTool, setSelectedTool] = useState(null); // NOUVEAU
+    const [selectedTool, setSelectedTool] = useState(null);
     
     const [isAutoCwt, setIsAutoCwt] = useState(false); 
+    const [isAutoHeight, setIsAutoHeight] = useState(false); // NOUVEAU : Mode Hauteur Max
     const [isUploading, setIsUploading] = useState(false);
 
     useEffect(() => {
@@ -501,13 +502,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         if(machine?.hasCounterweights && machine?.counterweights) { 
             if (!isAutoCwt) { setSelectedCwt(machine.counterweights[machine.counterweights.length - 1]); }
         } else { setSelectedCwt(null); } 
-
-        // Initialisation OUTILS
-        if (machine?.hasTools && machine?.tools) {
-            setSelectedTool(machine.tools[0]);
-        } else {
-            setSelectedTool(null);
-        }
+        if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
     }, [machine]);
 
     // Auto CWT logic
@@ -524,6 +519,27 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [isAutoCwt, inputLoad, inputDist, inputHeight, selectedBoomLen, machine]);
 
+    // --- LOGIQUE HAUTEUR AUTO (SNAP TO BOOM) ---
+    // Calcule la hauteur de la tête de flèche en fonction de la portée et de la longueur de flèche
+    const tipHeight = useMemo(() => {
+        if (!machine || !selectedBoomLen) return machine?.maxHeight || 10;
+        // Pythagore : Hauteur = Racine(Flèche² - Portée²)
+        // On ajoute un petit offset (ex: 1.5m) car l'axe de rotation n'est pas au sol
+        const pivotHeight = 1.5; 
+        const h = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
+        return isNaN(h) ? 0 : h + pivotHeight;
+    }, [machine, selectedBoomLen, inputDist]);
+
+    // Si le mode "Hauteur Max" est activé, on force inputHeight à suivre la tête de flèche
+    useEffect(() => {
+        if (isAutoHeight && machine.mode === 'multi_chart') {
+            // On limite pour ne pas dépasser la max height absolue
+            const safeTip = Math.min(tipHeight, machine.maxHeight);
+            if(safeTip > 0) setInputHeight(parseFloat(safeTip.toFixed(1)));
+        }
+    }, [isAutoHeight, tipHeight, machine]);
+
+
     // Calcul Final
     const allowedLoad = calculateMachineCapacity(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null), selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
@@ -535,16 +551,35 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const isSafe = inputLoad <= safeLoad && safeLoad > 0; 
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-    // Import Excel (Code inchangé, résumé ici)
-    const handleExcelUpload = (e) => { /* ... Ton code d'import existant ... */ };
-    const downloadTemplate = () => { /* ... Ton code template existant ... */ };
+    const handleExcelUpload = (e) => { /* ... (Code inchangé) ... */ };
+    const downloadTemplate = () => { /* ... (Code inchangé) ... */ };
 
-    // GRAPHIQUE 2D MIS À JOUR
+    // GRAPHIQUE 2D AMÉLIORÉ (CÂBLE + TÊTE FLÈCHE)
     const GraphChart2D = () => {
         if(!machine) return null;
-        const width = 600; const height = 450; const padding = 50; const maxX = machine.maxReach * 1.1; const maxY = machine.maxHeight * 1.1; const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); const userX = scaleX(inputDist); const userY = scaleY(inputHeight); const gridStep = machine.category === 'telehandler' ? 1 : (maxX > 60 ? 10 : 5);
+        const width = 600; const height = 450; const padding = 50; const maxX = machine.maxReach * 1.1; const maxY = machine.maxHeight * 1.1; const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
         
-        // Déterminer les zones à dessiner
+        const userX = scaleX(inputDist); 
+        const userY = scaleY(inputHeight);
+        
+        // Coordonnées de la tête de flèche (pour le dessin du câble)
+        let tipX = userX; // Par défaut, au dessus de la charge
+        let tipY = userY; // Par défaut, sur la charge
+        
+        if (machine.mode === 'multi_chart') {
+            // Si grue mobile, la tête est sur la courbe
+            const calculatedTipY = Math.min(tipHeight, machine.maxHeight);
+            // Si la portée est > longueur flèche, on ne peut pas calculer (hors abaque)
+            if (inputDist <= selectedBoomLen) {
+                tipY = scaleY(calculatedTipY);
+            }
+        } else {
+            // Pour télescopique/zone, on simule une tête de flèche plus haut (simplifié)
+            tipY = scaleY(Math.max(inputHeight + 1, machine.maxHeight * 0.8)); 
+        }
+
+        const gridStep = machine.category === 'telehandler' ? 1 : (maxX > 60 ? 10 : 5);
+        
         let zonesToDraw = [];
         if (machine.mode === 'zone') { zonesToDraw = machine.zones; }
         else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) {
@@ -559,20 +594,25 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={padding - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
                 
-                {/* DESSIN DES ZONES (Polygones) */}
-                {zonesToDraw.map(z => ( 
-                    <g key={z.id}>
-                        <path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />
-                        {/* Affiche le texte de capacité au centre approximatif du polygone */}
-                        {z.points.length > 2 && (
-                            <text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[2][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9" style={{textShadow: '0px 1px 2px rgba(0,0,0,0.5)'}}>{z.load/1000}t</text>
-                        )}
-                    </g> 
-                ))}
-
+                {zonesToDraw.map(z => ( <g key={z.id}><path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />{z.points.length > 2 && (<text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[2][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9" style={{textShadow: '0px 1px 2px rgba(0,0,0,0.5)'}}>{z.load/1000}t</text>)}</g> ))}
                 {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
                 
-                <line x1={scaleX(0)} y1={scaleY(0)} x2={userX} y2={userY} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="3" opacity="0.6" /><line x1={userX} y1={userY} x2={userX} y2={height-padding} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="1" strokeDasharray="4 2" /><circle cx={userX} cy={userY} r="8" fill={isSafe ? "#22c55e" : "#ef4444"} stroke="white" strokeWidth="3" className="transition-all duration-300 ease-out" />
+                {/* DESSIN DU CÂBLE DE LEVAGE (NOUVEAU) */}
+                {machine.mode === 'multi_chart' && inputDist <= selectedBoomLen && (
+                    <>
+                        {/* Tête de flèche (Poulie) */}
+                        <circle cx={tipX} cy={tipY} r="4" fill="white" stroke="#0f172a" strokeWidth="2" />
+                        {/* Câble */}
+                        <line x1={tipX} y1={tipY} x2={userX} y2={userY} stroke="#0f172a" strokeWidth="1.5" strokeDasharray="3 2" />
+                    </>
+                )}
+
+                <line x1={scaleX(0)} y1={scaleY(0)} x2={userX} y2={userY} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="3" opacity="0.6" />
+                <line x1={userX} y1={userY} x2={userX} y2={height-padding} stroke={isSafe ? "#16a34a" : "#dc2626"} strokeWidth="1" strokeDasharray="4 2" />
+                
+                {/* Point Charge (Crochet) */}
+                <circle cx={userX} cy={userY} r="8" fill={isSafe ? "#22c55e" : "#ef4444"} stroke="white" strokeWidth="3" className="transition-all duration-300 ease-out" />
+                
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text><text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
             </svg>
             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> {isSafe ? 'ZONE SÉCURISÉE' : 'ZONE INTERDITE'} </div>
@@ -589,6 +629,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-4 space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
+                        {/* Bloc sélection engin (inchangé) */}
                         <div className="absolute top-0 left-0 w-1 h-full bg-[#004e98]"></div>
                         <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Truck size={18} className="text-[#004e98]"/> Choix de l'engin</h3><button onClick={() => setShowDbManager(true)} className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 flex items-center gap-1"><Database size={12}/> Gérer Locale</button></div>
                         <div className="mb-4">
@@ -604,7 +645,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             </div>
                         )}
                         <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                            {/* Le bloc Import (inchangé) */}
                             <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-blue-800 flex items-center gap-1"><Database size={12}/> Import Fichier Spécifique</span><button onClick={downloadTemplate} className="text-[10px] text-blue-600 underline flex items-center gap-1 hover:text-blue-800"><Download size={10}/> Modèle Multi-Onglet</button></div>
                             <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-blue-200 border-dashed rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
                                 {isUploading ? <span className="text-xs font-bold text-blue-600 animate-pulse">Traitement...</span> : ( <> <Upload size={20} className="text-blue-400 mb-1" /> <span className="text-[10px] text-blue-500 font-semibold">Glisser fichier Excel</span> </> )}
@@ -612,10 +652,11 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             </label>
                         </div>
                     </div>
+                    
+                    {/* Bloc Configuration */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Configuration de Levage</h3>
                         <div className="space-y-6">
-                            {/* GRUES MOBILES: FLÈCHE & CONTREPOIDS */}
                             {machine && machine.mode === 'multi_chart' && (
                                 <>
                                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -636,28 +677,48 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     )}
                                 </>
                             )}
-
-                            {/* NOUVEAU : TELESCOPIQUES AVEC OUTILS */}
                             {machine && machine.hasTools && machine.tools && (
                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                     <label className="text-xs font-bold uppercase text-slate-500 mb-2 block flex items-center gap-2"><Anchor size={12}/> Accessoire / Outil</label>
                                     <div className="flex flex-wrap gap-2">
-                                        {machine.tools.map(tool => (
-                                            <button 
-                                                key={tool} 
-                                                onClick={() => setSelectedTool(tool)}
-                                                className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}
-                                            > 
-                                                {tool} 
-                                            </button>
-                                        ))}
+                                        {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {tool} </button> ))}
                                     </div>
                                 </div>
                             )}
 
                             <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={finalMassSliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
-                            <CustomRange label="Hauteur Crochet (m)" value={inputHeight} min={0} max={machine?.maxHeight + 2} step={0.5} unit="m" onChange={(e) => setInputHeight(parseFloat(e.target.value))} />
+                            
+                            {/* RANGE HAUTEUR AVEC BOUTON AUTO */}
+                            <div className="w-full">
+                                <div className="flex justify-between items-end mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-lg font-bold text-slate-700">Hauteur Crochet</label>
+                                        {machine.mode === 'multi_chart' && (
+                                            <button 
+                                                onClick={() => setIsAutoHeight(!isAutoHeight)}
+                                                className={`text-[9px] font-bold px-2 py-0.5 rounded border transition-colors ${isAutoHeight ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}
+                                                title="Forcer la hauteur max possible (Tête de flèche)"
+                                            >
+                                                {isAutoHeight ? 'AUTO (Max)' : 'MANUEL'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <span className="text-xl font-bold text-[#004e98]">{inputHeight} <span className="text-sm">m</span></span>
+                                </div>
+                                <div className="relative w-full h-8">
+                                    <input type="range" min={0} max={machine?.maxHeight + 2} step={0.5} value={inputHeight} onChange={(e) => { setInputHeight(parseFloat(e.target.value)); setIsAutoHeight(false); }} className="absolute w-full h-full z-20 opacity-0 cursor-pointer" />
+                                    <div className="absolute top-1/2 left-0 w-full h-3 bg-slate-200 rounded-full -translate-y-1/2 overflow-hidden z-10 pointer-events-none">
+                                        <div style={{ width: `${((inputHeight - 0) / (machine?.maxHeight + 2 - 0)) * 100}%` }} className="h-full bg-[#004e98] transition-all duration-100 ease-out"></div>
+                                    </div>
+                                    <div style={{ left: `calc(${((inputHeight - 0) / (machine?.maxHeight + 2 - 0)) * 100}% - 12px)` }} className="absolute top-1/2 w-6 h-6 bg-[#004e98] border-2 border-white rounded-full shadow-md -translate-y-1/2 z-10 pointer-events-none transition-all duration-100 ease-out"></div>
+                                </div>
+                                <div className="flex justify-between text-xs text-slate-400 mt-1 font-medium">
+                                    <span>0m</span>
+                                    <span>Max : {Math.round(machine?.maxHeight + 2)}m</span>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
