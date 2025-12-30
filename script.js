@@ -54,6 +54,85 @@ const isPointInPolygon = (x, y, polygon) => {
     return inside;
 };
 
+// --- MOTEUR DE CALCUL ROBUSTE (V3) ---
+const CraneCalculator = {
+    // Calcul la capacité pour une config précise
+    getCapacity: (machine, dist, height, boom, cwt, tool) => {
+        if (!machine) return 0;
+        
+        // 1. Limites physiques absolues
+        if (dist > machine.maxReach + 2) return 0;
+
+        // 2. Mode GRUES MOBILES (Abaques courbes)
+        if (machine.mode === 'multi_chart') {
+            // Vérification géométrique de base (La flèche est-elle assez longue ?)
+            const reqReachSq = (dist * dist) + (height * height);
+            if (reqReachSq > (boom * boom) + 0.1) return 0;
+
+            // Récupération des points
+            let points = [];
+            if (machine.hasCounterweights && cwt) {
+                points = machine.charts[cwt]?.[boom]?.std;
+            } else {
+                points = machine.charts[boom]?.std;
+            }
+
+            if (!points || points.length === 0) return 0;
+
+            // --- ÉTAPE 1 : RECHERCHE EXACTE (Priorité absolue) ---
+            // Si on est pile sur un point (à 5cm près), on renvoie la valeur.
+            // Cela corrige le bug du "60m" qui était rejeté à cause du trou avant lui.
+            const exactPoint = points.find(p => Math.abs(p.d - dist) <= 0.05);
+            if (exactPoint) return Math.floor(exactPoint.l * 1000);
+
+            // --- ÉTAPE 2 : INTERPOLATION SÉCURISÉE ---
+            // On cherche le segment [p1, p2] qui contient la distance
+            for (let i = 0; i < points.length - 1; i++) {
+                const p1 = points[i];
+                const p2 = points[i+1];
+
+                if (dist > p1.d && dist < p2.d) {
+                    // SÉCURITÉ "FANTÔME" : 
+                    // Si l'écart entre les deux points est > 10m (ex: 11m -> 60m), 
+                    // c'est un trou dans l'abaque. On renvoie 0.
+                    if ((p2.d - p1.d) > 10) return 0;
+
+                    // Sinon, interpolation linéaire classique
+                    const slope = (p2.l - p1.l) / (p2.d - p1.d);
+                    const interpolated = p1.l + slope * (dist - p1.d);
+                    return Math.floor(interpolated * 1000);
+                }
+            }
+            return 0; // Hors abaque
+        }
+
+        // 3. Mode TÉLESCOPIQUES (Zones)
+        if (machine.mode === 'zone' || machine.mode === 'zone_multi_tool') {
+            let activeZones = [];
+            if (machine.mode === 'zone_multi_tool') {
+                if (tool && machine.charts[tool]) activeZones = machine.charts[tool].zones;
+                else if (machine.tools?.length > 0) activeZones = machine.charts[machine.tools[0]].zones;
+            } else {
+                activeZones = machine.zones;
+            }
+
+            let foundLoad = 0;
+            if (activeZones) {
+                // Fonction utilitaire pour point dans polygone (rayon, hauteur)
+                // (Assurez-vous que isPointInPolygon est définie dans votre code, sinon je peux la fournir)
+                for (let zone of activeZones) {
+                    if (typeof isPointInPolygon === 'function' && isPointInPolygon(dist, height, zone.points)) {
+                        if (zone.load > foundLoad) foundLoad = zone.load;
+                    }
+                }
+            }
+            return foundLoad;
+        }
+
+        return 0;
+    }
+};
+
 const calculateMachineCapacity = (machine, dist, height, specificBoom = null, specificCwt = null, specificTool = null) => {
     if (!machine) return 0;
     // Note: Pour les potences, la portée max peut être augmentée, mais on garde la limite machine pour l'instant
@@ -476,15 +555,14 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [inputDist, setInputDist] = useState(5); 
     const [inputHeight, setInputHeight] = useState(2);
     
-    // Configuration Machine
+    // Configuration
     const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
     const [selectedCwt, setSelectedCwt] = useState(null);
     const [selectedTool, setSelectedTool] = useState(null);
-    
     const [isAutoCwt, setIsAutoCwt] = useState(false); 
     const [isUploading, setIsUploading] = useState(false);
 
-    // Initialisation
+    // Chargement initial
     useEffect(() => {
         const autoSelected = localStorage.getItem(SELECTED_CRANE_KEY);
         if (autoSelected) {
@@ -493,26 +571,22 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [allMachines]); 
 
+    // Filtrage
     const filteredMachines = useMemo(() => {
         return allMachines
             .filter(m => m.category === category)
             .sort((a, b) => {
                 if (a.source === 'local' && b.source !== 'local') return -1;
                 if (a.source !== 'local' && b.source === 'local') return 1;
-                if (a.source === 'local' && b.source === 'local') {
-                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                    return dateB - dateA; 
-                }
                 return a.name.localeCompare(b.name);
             });
     }, [allMachines, category]);
 
-    useEffect(() => { if (filteredMachines.length > 0) { if (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId)) { setSelectedMachineId(filteredMachines[0].id); } } else { setSelectedMachineId(null); } }, [category, filteredMachines, selectedMachineId]);
+    useEffect(() => { if (filteredMachines.length > 0 && (!selectedMachineId || !filteredMachines.find(m => m.id === selectedMachineId))) { setSelectedMachineId(filteredMachines[0].id); } }, [category, filteredMachines, selectedMachineId]);
 
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
     
-    // Initialisation params
+    // Init Machine Params
     useEffect(() => { 
         if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
             setSelectedBoomLen(machine.boomLengths[0]); 
@@ -520,95 +594,77 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         if(machine?.hasCounterweights && machine?.counterweights) { 
             if (!isAutoCwt) { 
                 const sorted = [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b));
-                setSelectedCwt(sorted[sorted.length - 1]); 
+                setSelectedCwt(sorted[sorted.length - 1]); // Plus lourd par défaut
             }
         } else { setSelectedCwt(null); } 
         if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
     }, [machine]);
 
-    // --- CALCUL GEOMETRIQUE ---
-    const tipHeightLogical = useMemo(() => {
-        if (!machine) return 10;
-        let boomLen = 0;
-        if (machine.mode === 'multi_chart') { boomLen = selectedBoomLen; } 
-        else { boomLen = Math.sqrt(Math.pow(Math.max(inputDist, machine.maxReach), 2) + Math.pow(machine.maxHeight, 2)); }
-        if (!boomLen || boomLen < inputDist) return 0; 
-        const h = Math.sqrt(Math.pow(boomLen, 2) - Math.pow(inputDist, 2));
-        return isNaN(h) ? 0 : h + 1.5; 
-    }, [machine, selectedBoomLen, inputDist]);
-
-    // --- FONCTION DE CALCUL INTELLIGENTE ---
-    // C'est ici qu'on gère les "trous" dans l'abaque
-    const getCapacitySafe = (m, d, h, boom, cwt, tool) => {
-        const cap = calculateMachineCapacity(m, d, h, boom, cwt, tool);
-        
-        // Si on est dans un "trou" de plus de 10m entre deux points définis, on renvoie 0
-        // Cela force le sélecteur auto à ignorer ce contrepoids
-        if (m.mode === 'multi_chart' && cap > 0) {
-             const points = m.hasCounterweights && cwt ? m.charts[cwt]?.[boom]?.std : m.charts[boom]?.std;
-             if (points && points.length > 1) {
-                 for (let i = 0; i < points.length - 1; i++) {
-                    if (d >= points[i].d && d <= points[i+1].d) {
-                        // Si l'écart est > 10m, c'est une zone vide (non définie)
-                        if ((points[i+1].d - points[i].d) > 10) return 0;
-                    }
-                 }
-             }
-        }
-        return cap;
-    };
-
-    // --- LOGIQUE AUTO CWT ---
-    // Vérifie en permanence quel contrepoids est nécessaire
+    // --- LOGIQUE AUTO CWT (Utilise CraneCalculator) ---
     useEffect(() => {
-        if (isAutoCwt && machine && machine.hasCounterweights && machine.counterweights) {
+        if (isAutoCwt && machine && machine.hasCounterweights) {
             const sortedCwts = [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b));
-            let bestCwt = null; let found = false;
-            
+            let bestCwt = null; 
+            let bestCap = -1;
+
+            // On cherche le contrepoids le plus léger qui VALIDE la charge
             for (const cwt of sortedCwts) {
-                // On utilise la fonction Safe pour ne pas choisir un CWT qui a un "trou" à cette portée
-                const capacity = getCapacitySafe(machine, inputDist, inputHeight, selectedBoomLen, cwt);
+                const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, cwt, selectedTool);
                 
-                // Si ce contrepoids suffit pour lever la charge (+ tolérance 1kg)
-                if (capacity >= inputLoad - 1) { 
+                // Si ce contrepoids permet de lever la charge (avec petite tolérance)
+                if (cap >= inputLoad - 1) { 
                     bestCwt = cwt; 
-                    found = true; 
-                    break; // On arrête dès qu'on a trouvé le plus léger qui marche
+                    bestCap = cap;
+                    break; // Trouvé ! On arrête.
                 }
             }
-            
-            // Si rien ne marche (trop lourd), on met le plus gros pour afficher la capacité max possible
-            if (!found && sortedCwts.length > 0) { 
-                bestCwt = sortedCwts[sortedCwts.length - 1]; 
+
+            // Si AUCUN ne marche, on prend le plus lourd pour montrer la capacité max possible (même si c'est rouge)
+            if (!bestCwt && sortedCwts.length > 0) {
+                bestCwt = sortedCwts[sortedCwts.length - 1];
             }
-            
+
             if (bestCwt && bestCwt !== selectedCwt) { setSelectedCwt(bestCwt); }
         }
     }, [isAutoCwt, inputLoad, inputDist, inputHeight, selectedBoomLen, machine]);
 
-    // Calculs finaux pour l'affichage
-    // Note: Pour l'affichage "Capacité Max", on utilise aussi getCapacitySafe pour ne pas afficher une valeur fausse dans un trou
-    const allowedLoad = getCapacitySafe(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null), selectedCwt, selectedTool);
-    const safeLoad = Math.floor(allowedLoad); 
-    
-    // --- SLIDER STABLE ---
-    // Le slider s'adapte : si l'utilisateur met 400t, le max devient 420t (400 * 1.05).
-    // Plus de saut intempestif.
-    const sliderMax = Math.max(
-        safeLoad > 0 ? safeLoad * 1.05 : 5000, 
-        inputLoad * 1.05, 
-        1000 // Minimum 1t
-    );
+    // --- CALCUL FINAL POUR AFFICHAGE ---
+    const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
+    const safeLoad = Math.floor(allowedLoad); // Capacité autorisée en kg
 
-    const isHeightValid = machine?.mode === 'multi_chart' ? (inputHeight <= tipHeightLogical) : (inputHeight <= machine?.maxHeight);
+    // --- LOGIQUE SLIDER MASSE (BLOQUANT) ---
+    // Limite stricte : 105% de la capacité.
+    // Si capacité nulle (0), on met une limite minimale (ex: 1000kg) pour ne pas casser l'UI
+    const sliderLimit = safeLoad > 0 ? Math.floor(safeLoad * 1.05) : 5000; 
+
+    // Si la valeur actuelle dépasse la nouvelle limite (ex: on change de flèche), on rabat la valeur
+    // SAUF si c'est l'utilisateur qui est en train de glisser (difficile à détecter, donc on rabat par sécurité)
+    useEffect(() => {
+        if (inputLoad > sliderLimit) {
+            setInputLoad(sliderLimit);
+        }
+    }, [sliderLimit]); // Se déclenche quand la limite change (changement de config)
+
+    // Géométrie Tête de flèche (pour Graphique et hauteur max)
+    const tipHeight = useMemo(() => {
+        if (!machine) return 10;
+        let b = 0;
+        if (machine.mode === 'multi_chart') b = selectedBoomLen;
+        else b = Math.sqrt(Math.pow(Math.max(inputDist, machine.maxReach), 2) + Math.pow(machine.maxHeight, 2));
+        if (!b || b < inputDist) return 0;
+        const h = Math.sqrt(Math.pow(b, 2) - Math.pow(inputDist, 2));
+        return isNaN(h) ? 0 : h + 1.5;
+    }, [machine, selectedBoomLen, inputDist]);
+
+    const isHeightValid = machine?.mode === 'multi_chart' ? (inputHeight <= tipHeight) : (inputHeight <= machine?.maxHeight);
     const isLoadSafe = inputLoad <= safeLoad && safeLoad > 0;
     const isSafe = isLoadSafe && isHeightValid;
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-    const handleExcelUpload = (e) => { /* ... (Fonction d'import inchangée, conservez la version précédente) ... */ };
-    const downloadTemplate = () => { /* ... (Fonction template inchangée) ... */ };
+    const handleExcelUpload = (e) => { /* Garder votre fonction existante */ }; 
+    const downloadTemplate = () => { /* Garder votre fonction existante */ };
 
-    // --- GRAPHIQUE 2D (inchangé) ---
+    // --- GRAPHIQUE ---
     const GraphChart2D = () => {
         if(!machine) return null;
         const width = 600; const height = 450; const padding = 50; 
@@ -616,17 +672,20 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); 
         const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
         const hookX = scaleX(inputDist); const hookY = scaleY(inputHeight);
-        let tipX = hookX; let tipY = scaleY(0); 
+        
+        let tipY = scaleY(0);
         if (machine.mode === 'multi_chart') {
-            const geometricTipHeight = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
-            tipY = scaleY(isNaN(geometricTipHeight) ? 0 : geometricTipHeight);
-        } else { tipY = scaleY(tipHeightLogical); }
-        const gridStep = machine.category === 'telehandler' ? 1 : (maxX > 60 ? 10 : 5);
+            const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
+            tipY = scaleY(isNaN(hGeo) ? 0 : hGeo);
+        } else { tipY = scaleY(tipHeight); }
+
+        const gridStep = machine.category === 'telehandler' ? 1 : 10;
+        
+        // Récupération des zones pour affichage
         let zonesToDraw = [];
-        if (machine.mode === 'zone') { zonesToDraw = machine.zones; }
-        else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) {
-            zonesToDraw = machine.charts[selectedTool].zones;
-        }
+        if (machine.mode === 'zone') zonesToDraw = machine.zones;
+        else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) zonesToDraw = machine.charts[selectedTool].zones;
+
         const statusColor = isSafe ? "#16a34a" : "#dc2626"; const statusFill = isSafe ? "#22c55e" : "#ef4444";
 
         return (
@@ -636,8 +695,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 <rect width="100%" height="100%" fill="white"/><rect x={padding} y={padding} width={width-2*padding} height={height-2*padding} fill="url(#grid)" /><line x1={padding} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" /><line x1={padding} y1={padding} x2={padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
                 {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={padding - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
+                
                 {zonesToDraw.map(z => ( <g key={z.id}><path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />{z.points.length > 2 && (<text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[2][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9">{z.load/1000}t</text>)}</g> ))}
                 {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
+                
                 <line x1={scaleX(0)} y1={scaleY(0)} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="3" opacity="0.8" />
                 <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
                 <circle cx={tipX} cy={tipY} r="6" fill={statusFill} stroke="white" strokeWidth="2" />
@@ -713,8 +774,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                             )}
 
-                            {/* SLIDER MASSE CORRIGÉ */}
-                            <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
+                            {/* SLIDER MASSE (BLOQUANT A LA LIMITE) */}
+                            <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderLimit/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
