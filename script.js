@@ -76,23 +76,19 @@ const CraneCalculator = {
 
             if (!points || points.length === 0) return 0;
 
-            // --- CORRECTION CRITIQUE 1 : RECHERCHE EXACTE ---
-            // On vérifie D'ABORD si on est pile sur un point (tolérance 5cm)
-            // Cela permet de valider le point 60m même si le segment 11m->60m est un "trou".
-            const exactPoint = points.find(p => Math.abs(p.d - dist) <= 0.05);
+            // --- CORRECTION : Tolérance augmentée à 0.1 (10cm) pour capter le 60m pile ---
+            const exactPoint = points.find(p => Math.abs(p.d - dist) <= 0.1);
             if (exactPoint) return Math.floor(exactPoint.l * 1000);
 
-            // --- CORRECTION CRITIQUE 2 : INTERPOLATION SÉCURISÉE ---
+            // Interpolation
             for (let i = 0; i < points.length - 1; i++) {
                 const p1 = points[i];
                 const p2 = points[i+1];
 
                 if (dist > p1.d && dist < p2.d) {
-                    // Si l'écart entre les deux points est > 10m, c'est un vide (donnée manquante)
-                    // On renvoie 0 pour dire "Pas de capacité ici"
+                    // Sécurité "Trou" (>10m d'écart = vide)
                     if ((p2.d - p1.d) > 10) return 0;
 
-                    // Sinon on interpole
                     const slope = (p2.l - p1.l) / (p2.d - p1.d);
                     const interpolated = p1.l + slope * (dist - p1.d);
                     return Math.floor(interpolated * 1000);
@@ -351,9 +347,31 @@ const DeterminePage = ({ allMachines }) => {
     const performAutoSelect = (targetMassKg, targetDist, targetHeight) => {
         const candidates = [];
         allMachines.forEach(m => {
-            const cap = calculateMachineCapacity(m, targetDist, targetHeight);
-            const usage = cap > 0 ? (targetMassKg / cap) * 100 : 999;
-            if (cap >= targetMassKg && usage <= maxUsagePercent) { candidates.push({ machine: m, capacity: cap, excess: cap - targetMassKg, usage: usage }); }
+            // CORRECTION ICI : Appel au nouveau Moteur
+            const cap = CraneCalculator.getCapacity(m, targetDist, targetHeight, null, null, null);
+            
+            // Pour les grues mobiles en mode "Déterminer", on teste la meilleure config interne
+            // Note: CraneCalculator gère mal le "null" pour boom/cwt en interne pour le multi_chart
+            // On doit faire une boucle locale pour trouver le max de la machine
+            let maxCapMachine = 0;
+            if (m.mode === 'multi_chart') {
+                // On teste toutes les flèches et contrepoids pour trouver le max possible
+                const booms = m.boomLengths || [];
+                const cwts = m.hasCounterweights ? m.counterweights : [null];
+                cwts.forEach(c => {
+                    booms.forEach(b => {
+                        const val = CraneCalculator.getCapacity(m, targetDist, targetHeight, b, c, null);
+                        if(val > maxCapMachine) maxCapMachine = val;
+                    });
+                });
+            } else {
+                maxCapMachine = cap; // Pour les télescopiques, le calcul est direct
+            }
+
+            const usage = maxCapMachine > 0 ? (targetMassKg / maxCapMachine) * 100 : 999;
+            if (maxCapMachine >= targetMassKg && usage <= maxUsagePercent) { 
+                candidates.push({ machine: m, capacity: maxCapMachine, excess: maxCapMachine - targetMassKg, usage: usage }); 
+            }
         });
         candidates.sort((a, b) => a.capacity - b.capacity);
         if (candidates.length > 0) { const best = candidates[0].machine; setSuggestedCrane(best); localStorage.setItem(SELECTED_CRANE_KEY, JSON.stringify(best)); } 
@@ -411,18 +429,36 @@ const DeterminePage = ({ allMachines }) => {
                                 <div className="flex gap-2">
                                     <button onClick={() => exportCraneExcel(suggestedCrane)} className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded border border-green-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque Excel</button>
                                     
-                                    {/* BOUTON PDF CORRIGÉ AVEC DÉTECTION DU CONTREPOIDS MAX */}
                                     <button onClick={() => {
                                         let cwtToPrint = null;
-                                        // On cherche quel contrepoids donne la capacité MAX affichée
                                         if(suggestedCrane.hasCounterweights) {
                                             let currentMax = 0;
                                             suggestedCrane.counterweights.forEach(c => {
-                                                const val = calculateMachineCapacity(suggestedCrane, distance, height, null, c);
-                                                if(val > currentMax) { currentMax = val; cwtToPrint = c; }
+                                                // Appel corrigé
+                                                // On cherche la flèche qui donne le max pour ce contrepoids
+                                                suggestedCrane.boomLengths.forEach(b => {
+                                                    const val = CraneCalculator.getCapacity(suggestedCrane, distance, height, b, c, null);
+                                                    if(val > currentMax) { currentMax = val; cwtToPrint = c; }
+                                                });
                                             });
                                         }
-                                        generateAdequacyPDF(suggestedCrane, (unit==='kg'?mass:mass*1000), distance, height, true, calculateMachineCapacity(suggestedCrane, distance, height), cwtToPrint);
+                                        // Appel corrigé
+                                        // Pour obtenir la capacité MAX globale affichée, il faut réitérer le calcul max ou le stocker
+                                        // Ici, on refait un calcul rapide pour le PDF
+                                        let finalCap = 0;
+                                        if (suggestedCrane.mode === 'multi_chart') {
+                                             const cwts = suggestedCrane.hasCounterweights ? suggestedCrane.counterweights : [null];
+                                             cwts.forEach(c => {
+                                                suggestedCrane.boomLengths.forEach(b => {
+                                                    const v = CraneCalculator.getCapacity(suggestedCrane, distance, height, b, c, null);
+                                                    if(v > finalCap) finalCap = v;
+                                                });
+                                             });
+                                        } else {
+                                            finalCap = CraneCalculator.getCapacity(suggestedCrane, distance, height, null, null, null);
+                                        }
+
+                                        generateAdequacyPDF(suggestedCrane, (unit==='kg'?mass:mass*1000), distance, height, true, finalCap, cwtToPrint);
                                     }} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-3 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> PDF Adéquation</button>
                                 </div>
                             </div>
