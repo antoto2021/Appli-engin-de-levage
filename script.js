@@ -417,7 +417,20 @@ const DeterminePage = ({ allMachines }) => {
                                 <p className="text-sm text-slate-500 mb-4">{suggestedCrane.category} • Max {suggestedCrane.maxLoad}kg</p>
                                 <div className="flex gap-2">
                                     <button onClick={() => exportCraneExcel(suggestedCrane)} className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded border border-green-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque Excel</button>
-                                    <button onClick={() => generateAdequacyPDF(suggestedCrane, (unit==='kg'?mass:mass*1000), distance, height, true, calculateMachineCapacity(suggestedCrane, distance, height))} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-3 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> PDF Adéquation</button>
+                                    
+                                    {/* BOUTON PDF CORRIGÉ AVEC DÉTECTION DU CONTREPOIDS MAX */}
+                                    <button onClick={() => {
+                                        let cwtToPrint = null;
+                                        // On cherche quel contrepoids donne la capacité MAX affichée
+                                        if(suggestedCrane.hasCounterweights) {
+                                            let currentMax = 0;
+                                            suggestedCrane.counterweights.forEach(c => {
+                                                const val = calculateMachineCapacity(suggestedCrane, distance, height, null, c);
+                                                if(val > currentMax) { currentMax = val; cwtToPrint = c; }
+                                            });
+                                        }
+                                        generateAdequacyPDF(suggestedCrane, (unit==='kg'?mass:mass*1000), distance, height, true, calculateMachineCapacity(suggestedCrane, distance, height), cwtToPrint);
+                                    }} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-3 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> PDF Adéquation</button>
                                 </div>
                             </div>
                         ) : ( <div className="text-center p-4 text-slate-500 italic text-sm">Aucun engin trouvé pour cette configuration (limite {maxUsagePercent}%).</div> )}
