@@ -463,8 +463,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [selectedCwt, setSelectedCwt] = useState(null);
     const [selectedTool, setSelectedTool] = useState(null);
     
+    // États de sélection automatique (AutoHeight supprimé)
     const [isAutoCwt, setIsAutoCwt] = useState(false); 
-    const [isAutoHeight, setIsAutoHeight] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
     useEffect(() => {
@@ -505,27 +505,17 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
     }, [machine]);
 
-    // --- CALCUL GEOMETRIQUE (Tête de flèche) ---
-    const tipHeight = useMemo(() => {
+    // --- CALCUL GEOMETRIQUE (Tête de flèche pour la LOGIQUE) ---
+    // Ce calcul conserve le décalage de pivot (+1.5m) pour la logique de sécurité
+    const tipHeightLogical = useMemo(() => {
         if (!machine) return 10;
         let boomLen = 0;
-        
-        if (machine.mode === 'multi_chart') {
-            boomLen = selectedBoomLen;
-        } else {
-            // Pour les télescopiques (mode zone), on estime la flèche max
-            // On considère que la flèche est sortie pour atteindre la portée demandée
-            // C'est une approximation car on n'a pas la longueur de flèche exacte sélectionnée en mode zone
-            // On utilise Pythagore inverse ou la maxReach si dist > maxReach
-            boomLen = Math.sqrt(Math.pow(Math.max(inputDist, machine.maxReach), 2) + Math.pow(machine.maxHeight, 2));
-        }
+        if (machine.mode === 'multi_chart') { boomLen = selectedBoomLen; } 
+        else { boomLen = Math.sqrt(Math.pow(Math.max(inputDist, machine.maxReach), 2) + Math.pow(machine.maxHeight, 2)); }
 
-        if (!boomLen || boomLen < inputDist) return 0; // Impossible physiquement
-
-        // Pythagore : Hauteur = Racine(Flèche² - Portée²)
-        // Offset pivot (1.5m estimé)
+        if (!boomLen || boomLen < inputDist) return 0; 
         const h = Math.sqrt(Math.pow(boomLen, 2) - Math.pow(inputDist, 2));
-        return isNaN(h) ? 0 : h + 1.5; 
+        return isNaN(h) ? 0 : h + 1.5; // Offset pivot conservé ici pour la logique
     }, [machine, selectedBoomLen, inputDist]);
 
     // Auto CWT logic
@@ -542,14 +532,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [isAutoCwt, inputLoad, inputDist, inputHeight, selectedBoomLen, machine]);
 
-    // Auto Height Logic
-    useEffect(() => {
-        if (isAutoHeight) {
-            const safeTip = Math.max(0, tipHeight - 1); // On se met 1m sous la tête
-            setInputHeight(parseFloat(safeTip.toFixed(1)));
-        }
-    }, [isAutoHeight, tipHeight, inputDist]); // Recalcul si la portée change
-
     // --- CALCULS DE SÉCURITÉ ---
     const allowedLoad = calculateMachineCapacity(machine, inputDist, inputHeight, (machine?.mode === 'multi_chart' ? selectedBoomLen : null), selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
@@ -558,50 +540,55 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     
     useEffect(() => { if (inputLoad > finalMassSliderMax) { setInputLoad(Math.floor(finalMassSliderMax)); } }, [finalMassSliderMax, inputLoad]);
     
-    // Vérification géométrique (Hauteur possible ?)
-    const isHeightValid = machine?.mode === 'multi_chart' ? (inputHeight <= tipHeight) : (inputHeight <= machine?.maxHeight);
+    // Vérification géométrique (On compare la hauteur demandée à la hauteur logique max)
+    const isHeightValid = machine?.mode === 'multi_chart' ? (inputHeight <= tipHeightLogical) : (inputHeight <= machine?.maxHeight);
     
-    // Sécurité Globale (Charge OK ET Hauteur OK)
     const isLoadSafe = inputLoad <= safeLoad && safeLoad > 0;
     const isSafe = isLoadSafe && isHeightValid;
     
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-    const handleExcelUpload = (e) => { /* Code inchangé */ }; // (Conserver le code existant dans votre fichier)
-    const downloadTemplate = () => { /* Code inchangé */ }; // (Conserver le code existant dans votre fichier)
+    const handleExcelUpload = (e) => { /* Code inchangé */ };
+    const downloadTemplate = () => { /* Code inchangé */ };
 
-    // --- GRAPHIQUE 2D (Refondu) ---
+    // --- GRAPHIQUE 2D ---
     const GraphChart2D = () => {
         if(!machine) return null;
         const width = 600; const height = 450; const padding = 50; 
         const maxX = machine.maxReach * 1.1; 
         const maxY = machine.maxHeight * 1.1; 
-        
         const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); 
         const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
         
-        // Coordonnées
+        // Coordonnées du Crochet (Défini par l'utilisateur)
         const hookX = scaleX(inputDist);
         const hookY = scaleY(inputHeight);
         
+        // Coordonnées de la Tête de flèche (Pour le dessin)
         let tipX = hookX;
-        let tipY = scaleY(tipHeight);
+        let tipY = scaleY(0); // Par défaut au sol si problème
 
-        // Si la portée dépasse la flèche (cas impossible physiquement), on limite graphiquement
-        if (machine.mode === 'multi_chart' && inputDist > selectedBoomLen) {
-             tipY = scaleY(0); // Au sol
+        if (machine.mode === 'multi_chart') {
+            // CORRECTION MAJEURE ICI :
+            // Pour le dessin, on calcule la hauteur géométrique PURE (sans offset de pivot)
+            // pour qu'elle tombe exactement sur l'arc de cercle SVG qui part de 0.
+            const geometricTipHeight = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
+            
+            // Si NaN (portée > flèche), on met au sol, sinon on met à la hauteur exacte
+            tipY = scaleY(isNaN(geometricTipHeight) ? 0 : geometricTipHeight);
+        } else {
+            // Pour les télescopiques, on utilise la hauteur logique calculée
+            tipY = scaleY(tipHeightLogical);
         }
 
         const gridStep = machine.category === 'telehandler' ? 1 : (maxX > 60 ? 10 : 5);
-        
         let zonesToDraw = [];
         if (machine.mode === 'zone') { zonesToDraw = machine.zones; }
         else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) {
             zonesToDraw = machine.charts[selectedTool].zones;
         }
 
-        // Couleur d'état
-        const statusColor = isSafe ? "#16a34a" : "#dc2626"; // Vert ou Rouge
+        const statusColor = isSafe ? "#16a34a" : "#dc2626"; 
         const statusFill = isSafe ? "#22c55e" : "#ef4444";
 
         return (
@@ -612,22 +599,21 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={padding - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
                 
-                {/* ZONES (Télescopiques) */}
                 {zonesToDraw.map(z => ( <g key={z.id}><path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />{z.points.length > 2 && (<text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[2][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9">{z.load/1000}t</text>)}</g> ))}
                 
-                {/* COURBES (Grues Mobiles) */}
+                {/* COURBES (Grues Mobiles) - Dessin des arcs */}
                 {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
                 
-                {/* 1. BRAS DE GRUE (Ligne entre origine et tête de flèche) */}
+                {/* 1. BRAS DE GRUE */}
                 <line x1={scaleX(0)} y1={scaleY(0)} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="3" opacity="0.8" />
                 
-                {/* 2. CÂBLE (Ligne pointillée entre Tête et Crochet) */}
+                {/* 2. CÂBLE */}
                 <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
 
-                {/* 3. TÊTE DE FLÈCHE (Point Coloré - Sur la courbe) */}
+                {/* 3. TÊTE DE FLÈCHE (Sur la courbe exacte) */}
                 <circle cx={tipX} cy={tipY} r="6" fill={statusFill} stroke="white" strokeWidth="2" />
 
-                {/* 4. CROCHET (Point Blanc/Noir - Hauteur utilisateur) */}
+                {/* 4. CROCHET */}
                 <circle cx={hookX} cy={hookY} r="6" fill="white" stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text><text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
@@ -702,20 +688,16 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             )}
 
                             <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={finalMassSliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
-                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => { setInputDist(parseFloat(e.target.value)); setIsAutoHeight(false); }} />
+                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
+                            {/* Slider Hauteur SANS bouton Auto */}
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-lg font-bold text-slate-700">Hauteur Crochet</label>
-                                        <button onClick={() => setIsAutoHeight(!isAutoHeight)} className={`text-[9px] font-bold px-2 py-0.5 rounded border transition-colors ${isAutoHeight ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`} title="Suivre la hauteur de tête de flèche">
-                                            {isAutoHeight ? 'AUTO (Max)' : 'MANUEL'}
-                                        </button>
-                                    </div>
+                                    <label className="text-lg font-bold text-slate-700">Hauteur Crochet</label>
                                     <span className="text-xl font-bold text-[#004e98]">{inputHeight} <span className="text-sm">m</span></span>
                                 </div>
                                 <div className="relative w-full h-8">
-                                    <input type="range" min={0} max={machine?.maxHeight + 5} step={0.5} value={inputHeight} onChange={(e) => { setInputHeight(parseFloat(e.target.value)); setIsAutoHeight(false); }} className="absolute w-full h-full z-20 opacity-0 cursor-pointer" />
+                                    <input type="range" min={0} max={machine?.maxHeight + 5} step={0.5} value={inputHeight} onChange={(e) => setInputHeight(parseFloat(e.target.value))} className="absolute w-full h-full z-20 opacity-0 cursor-pointer" />
                                     <div className="absolute top-1/2 left-0 w-full h-3 bg-slate-200 rounded-full -translate-y-1/2 overflow-hidden z-10 pointer-events-none">
                                         <div style={{ width: `${((inputHeight - 0) / (machine?.maxHeight + 5 - 0)) * 100}%` }} className="h-full bg-[#004e98] transition-all duration-100 ease-out"></div>
                                     </div>
@@ -751,7 +733,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         </div>
     );
 };
-
 const App = () => {
     const [page, setPage] = useState('home');
     const [localMachines, setLocalMachines] = useState([]); const [externalMachines, setExternalMachines] = useState([]);
