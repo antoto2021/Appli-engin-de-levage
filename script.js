@@ -539,9 +539,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             let found = false;
 
             for (const cwt of sortedCwts) {
-                // On utilise le CraneCalculator qui renvoie 0 si on est dans un "trou" (>10m)
                 const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, cwt, selectedTool);
-                
                 if (cap >= inputLoad - 1) { 
                     bestCwt = cwt; 
                     found = true; 
@@ -557,8 +555,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
-    // --- CORRECTION SLIDER MASSE (ANTI-SAUT) ---
-    // Le Max est : 105% de la capacité OU la valeur saisie par l'utilisateur (si elle est plus grande)
     const sliderMax = Math.max(
         safeLoad > 0 ? Math.ceil(safeLoad * 1.05) : 5000, 
         inputLoad, 
@@ -581,7 +577,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const isSafe = isLoadSafe && isHeightValid;
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-    const handleExcelUpload = (e) => { /* Code inchangé */ 
+    // DÉFINITION DYNAMIQUE DU PAS (STEP) DE LA PORTÉE
+    const currentStepDist = machine?.category === 'telehandler' ? 0.25 : 0.5;
+
+    const handleExcelUpload = (e) => { 
         const file = e.target.files[0]; if (!file) return; setIsUploading(true); const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
@@ -616,46 +615,153 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }; reader.readAsBinaryString(file);
     };
     
-    const downloadTemplate = () => { /* Code inchangé */
+    const downloadTemplate = () => {
         const wb = XLSX.utils.book_new(); const sheets = [ { name: "0t", multiplier: 0.5 }, { name: "12t", multiplier: 0.8 }, { name: "24t", multiplier: 1.0 } ]; const baseData = [ ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], [3, 50, 40, null, null], [10, 20, 18, 15, 12], [30, null, null, 4, 3] ];
         sheets.forEach(sheet => { const data = baseData.map((row, i) => { if (i === 0) return row; return row.map((cell, j) => { if (j === 0 || cell === null) return cell; return Number((cell * sheet.multiplier).toFixed(1)); }); }); const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, sheet.name); }); XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
     };
 
     const GraphChart2D = () => {
         if(!machine) return null;
-        const width = 600; const height = 450; const padding = 50; 
-        const maxX = machine.maxReach * 1.1; const maxY = machine.maxHeight * 1.1; 
-        const scaleX = (d) => padding + (d / maxX) * (width - 2 * padding); 
+        
+        const width = 600; const height = 450; 
+        const padding = 50; 
+        
+        // Catégories
+        const isTelehandler = machine.category === 'telehandler';
+        const isMobile = machine.category === 'mobile_crane';
+        const isCrawler = machine.category === 'crawler_crane';
+
+        // Marge à gauche dynamique pour gérer l'encombrement arrière
+        const paddingLeft = isTelehandler ? 80 : 110; 
+        
+        const maxX = machine.maxReach * 1.1; 
+        const maxY = Math.max(machine.maxHeight * 1.1, inputHeight * 1.1, 5); 
+        
+        const scaleX = (d) => paddingLeft + (d / maxX) * (width - paddingLeft - padding); 
         const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
-        const hookX = scaleX(inputDist); const hookY = scaleY(inputHeight);
-		const tipX = hookX;
+        
+        const hookX = scaleX(inputDist); 
+        const hookY = scaleY(inputHeight);
+        
+        // Gestion des Points de Pivot
+        const pivotX_m = isTelehandler ? -1.5 : 0;
+        const pivotY_m = isTelehandler ? 1.5 : (isMobile ? 2.0 : 1.5);
+        
+        const pivotX = scaleX(pivotX_m);
+        const pivotY = scaleY(pivotY_m);
+        
         let tipY = scaleY(0); 
+        let tipX = hookX; 
         if (machine.mode === 'multi_chart') {
             const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
             tipY = scaleY(isNaN(hGeo) ? 0 : hGeo);
         } else { tipY = scaleY(tipHeight); }
-        const gridStep = machine.category === 'telehandler' ? 1 : (maxX > 60 ? 10 : 5);
+
+        const gridStep = isTelehandler ? 1 : (maxX > 60 ? 10 : 5);
         let zonesToDraw = [];
         if (machine.mode === 'zone') zonesToDraw = machine.zones;
         else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) zonesToDraw = machine.charts[selectedTool].zones;
-        const statusColor = isSafe ? "#16a34a" : "#dc2626"; const statusFill = isSafe ? "#22c55e" : "#ef4444";
+        
+        const statusColor = isSafe ? "#16a34a" : "#dc2626"; 
+        const statusFill = isSafe ? "#22c55e" : "#ef4444";
 
         return (
         <div className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
-                <defs><pattern id="grid" width={scaleX(gridStep) - scaleX(0)} height={scaleY(0) - scaleY(gridStep)} patternUnits="userSpaceOnUse"><path d={`M ${scaleX(gridStep) - scaleX(0)} 0 L 0 0 0 ${scaleY(0) - scaleY(gridStep)}`} fill="none" stroke="#f1f5f9" strokeWidth="1"/></pattern></defs>
-                <rect width="100%" height="100%" fill="white"/><rect x={padding} y={padding} width={width-2*padding} height={height-2*padding} fill="url(#grid)" /><line x1={padding} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" /><line x1={padding} y1={padding} x2={padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
+                <defs>
+                    <pattern id="grid" width={scaleX(gridStep) - scaleX(0)} height={scaleY(0) - scaleY(gridStep)} patternUnits="userSpaceOnUse">
+                        <path d={`M ${scaleX(gridStep) - scaleX(0)} 0 L 0 0 0 ${scaleY(0) - scaleY(gridStep)}`} fill="none" stroke="#f1f5f9" strokeWidth="1"/>
+                    </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="white"/>
+                <rect x={paddingLeft} y={padding} width={width-paddingLeft-padding} height={height-2*padding} fill="url(#grid)" />
+                
+                {/* Axes */}
+                <line x1={paddingLeft} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
+                <line x1={paddingLeft} y1={padding} x2={paddingLeft} y2={height-padding} stroke="#334155" strokeWidth="2" />
+                
+                {/* Graduations */}
                 {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
-                {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={padding - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
-                {zonesToDraw.map(z => ( <g key={z.id}><path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || 'none'} strokeWidth="1" />{z.points.length > 2 && (<text x={scaleX((z.points[0][0] + z.points[2][0])/2)} y={scaleY((z.points[0][1] + z.points[2][1])/2)} fontSize="10" fontWeight="bold" fill="#fff" textAnchor="middle" opacity="0.9">{z.load/1000}t</text>)}</g> ))}
+                {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={paddingLeft - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
+                
+                {/* Zones (Abaques couleur) */}
+                {zonesToDraw.map(z => {
+                    let centerX = z.points.reduce((sum, p) => sum + p[0], 0) / z.points.length;
+                    let centerY = z.points.reduce((sum, p) => sum + p[1], 0) / z.points.length;
+                    return ( 
+                        <g key={z.id}>
+                            <path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || '#ffffff'} strokeWidth="1.5" strokeLinejoin="round" />
+                            {z.points.length > 2 && (<text x={scaleX(centerX)} y={scaleY(centerY)} fontSize="11" fontWeight="bold" fill="#ffffff" textAnchor="middle" dominantBaseline="middle" style={{textShadow: '0px 0px 3px rgba(0,0,0,0.5)'}}>{z.load/1000}t</text>)}
+                        </g> 
+                    );
+                })}
+
+                {/* --- DESSINS DES ENGINS --- */}
+                
+                {/* Manitou */}
+                {isTelehandler && (
+                    <g transform={`translate(${scaleX(-2.5)}, ${scaleY(2)})`} opacity="0.8">
+                        <circle cx="50" cy="50" r="25" fill="#334155" stroke="#0f172a" strokeWidth="8" strokeDasharray="4 2"/>
+                        <circle cx="50" cy="50" r="10" fill="#94a3b8"/>
+                        <path d="M 10 50 L 10 -20 L 40 -20 L 50 -50 L 90 -50 L 100 0 L 100 50 Z" fill="#ef4444" stroke="#7f1d1d" strokeWidth="2"/>
+                        <path d="M 55 -45 L 85 -45 L 90 -5 L 50 -5 Z" fill="#bae6fd" opacity="0.5"/>
+                        <rect x="90" y="10" width="30" height="10" fill="#334155" />
+                        <rect x="115" y="-10" width="5" height="70" fill="#334155" />
+                    </g>
+                )}
+
+                {/* Grue Mobile */}
+                {isMobile && (
+                    <g opacity="0.9">
+                        <line x1={scaleX(-3)} y1={scaleY(1)} x2={scaleX(-3.5)} y2={scaleY(0)} stroke="#334155" strokeWidth="4"/>
+                        <line x1={scaleX(3)} y1={scaleY(1)} x2={scaleX(3.5)} y2={scaleY(0)} stroke="#334155" strokeWidth="4"/>
+                        <rect x={scaleX(-4)} y={scaleY(0)} width={scaleX(-3)-scaleX(-4)} height="6" fill="#0f172a"/>
+                        <rect x={scaleX(3)} y={scaleY(0)} width={scaleX(4)-scaleX(3)} height="6" fill="#0f172a"/>
+                        <rect x={scaleX(-4.5)} y={scaleY(1.5)} width={scaleX(4.5)-scaleX(-4.5)} height={scaleY(0.5)-scaleY(1.5)} fill="#f59e0b" rx="4"/>
+                        <path d={`M ${scaleX(3.5)} ${scaleY(1.5)} L ${scaleX(3.5)} ${scaleY(2.2)} L ${scaleX(4.5)} ${scaleY(2.2)} L ${scaleX(4.5)} ${scaleY(1.5)} Z`} fill="#94a3b8" stroke="#334155"/>
+                        <path d={`M ${scaleX(-1)} ${scaleY(1.5)} L ${scaleX(-1)} ${scaleY(2.8)} L ${scaleX(1.5)} ${scaleY(2.8)} L ${scaleX(1.5)} ${scaleY(1.5)} Z`} fill="#f59e0b" />
+                        <rect x={scaleX(0.5)} y={scaleY(2.8)} width={scaleX(1.5)-scaleX(0.5)} height={scaleY(1.8)-scaleY(2.8)} fill="#bae6fd" stroke="#334155"/>
+                        <rect x={scaleX(-3.5)} y={scaleY(2.5)} width={scaleX(-1)-scaleX(-3.5)} height={scaleY(1.5)-scaleY(2.5)} fill="#475569" rx="2"/>
+                    </g>
+                )}
+
+                {/* Grue Treillis */}
+                {isCrawler && (
+                    <g opacity="0.9">
+                        <rect x={scaleX(-3.5)} y={scaleY(1.2)} width={scaleX(3.5)-scaleX(-3.5)} height={scaleY(0)-scaleY(1.2)} fill="#334155" rx="10"/>
+                        <circle cx={scaleX(-2.5)} cy={scaleY(0.6)} r={scaleY(0.6)-scaleY(1.2)} fill="#64748b"/>
+                        <circle cx={scaleX(2.5)} cy={scaleY(0.6)} r={scaleY(0.6)-scaleY(1.2)} fill="#64748b"/>
+                        <path d={`M ${scaleX(-2.5)} ${scaleY(1.2)} L ${scaleX(2)} ${scaleY(1.2)} L ${scaleX(2)} ${scaleY(2.5)} L ${scaleX(-2.5)} ${scaleY(2.5)} Z`} fill="#eab308"/>
+                        <rect x={scaleX(1)} y={scaleY(2.5)} width={scaleX(2)-scaleX(1)} height={scaleY(1.5)-scaleY(2.5)} fill="#bae6fd" stroke="#334155"/>
+                        <rect x={scaleX(-4.5)} y={scaleY(2.5)} width={scaleX(-2)-scaleX(-4.5)} height={scaleY(1.2)-scaleY(2.5)} fill="#475569"/>
+                        <rect x={scaleX(-4.5)} y={scaleY(1.2)} width={scaleX(-2)-scaleX(-4.5)} height={scaleY(0.2)-scaleY(1.2)} fill="#64748b"/>
+                    </g>
+                )}
+
+                {/* Flèche Principale */}
+                {isCrawler ? (
+                    <g>
+                        <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke="#eab308" strokeWidth="8" opacity="0.9" strokeLinecap="square" />
+                        <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke="#334155" strokeWidth="6" strokeDasharray="5 5" opacity="0.7" />
+                    </g>
+                ) : (
+                    <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="6" opacity="0.9" strokeLinecap="round" />
+                )}
+                
+                {/* Courbe abaques standards (si applicable) */}
                 {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
-                <line x1={scaleX(0)} y1={scaleY(0)} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="3" opacity="0.8" />
+                
+                {/* Câble */}
                 <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
-                <circle cx={tipX} cy={tipY} r="6" fill={statusFill} stroke="white" strokeWidth="2" />
-                <circle cx={hookX} cy={hookY} r="6" fill="white" stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
-                <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text><text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
+                <circle cx={pivotX} cy={pivotY} r="5" fill="#0f172a" />
+                <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
+                
+                <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
+                <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
             </svg>
-            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> {isSafe ? 'ZONE SÉCURISÉE' : (isHeightValid ? 'SURCHARGE' : 'HAUTEUR IMPOSSIBLE')} </div>
+            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> 
+                {isSafe ? 'ZONE SÉCURISÉE' : (isHeightValid ? 'SURCHARGE' : 'HAUTEUR IMPOSSIBLE')} 
+            </div>
         </div>
         );
     };
@@ -725,7 +831,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             )}
 
                             <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
-                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
+                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
