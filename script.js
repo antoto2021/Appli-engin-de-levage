@@ -646,7 +646,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         
         // --- CORRECTION : La pointe de la flèche s'arrête exactement au crochet ---
         const tipX = hookX; 
-        const tipY = hookY;
+        let tipY;
 
         // Pour les grues mobiles (courbes), la flèche monte jusqu'à sa longueur physique
         if (machine.mode === 'multi_chart') {
