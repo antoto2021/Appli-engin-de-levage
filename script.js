@@ -640,15 +640,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         const hookX = scaleX(inputDist); 
         const hookY = scaleY(inputHeight);
         
-        // --- NOUVEAUTÉ : Origine et pointe de la flèche ---
-        // Le pivot X est TOUJOURS à 0. 
-        // Le pivot Y part de 0 pour le Manitou, et légèrement surélevé pour les grues
+        // --- CORRECTION : Pivot forcé à (0, 0) pour tous les types ---
         const pivotX = scaleX(0);
-        const pivotY = scaleY(isTelehandler ? 0 : 2.0);
+        const pivotY = scaleY(0);
         
-        // La pointe X de la flèche est toujours au-dessus du crochet
-        let tipX = hookX; 
-        let tipY = scaleY(0); 
+        // --- CORRECTION : La pointe de la flèche s'arrête exactement au crochet ---
+        const tipX = hookX; 
+        const tipY = hookY;
 
         // Pour les grues mobiles (courbes), la flèche monte jusqu'à sa longueur physique
         if (machine.mode === 'multi_chart') {
