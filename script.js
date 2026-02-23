@@ -641,16 +641,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         const pivotX = scaleX(0);
         const pivotY = scaleY(0);
         
-        // CORRECTION ICI : on utilise "let" pour pouvoir modifier la valeur
         let tipX = hookX; 
         let tipY; 
 
         if (machine.mode === 'multi_chart') {
-            // Pour les grues, la ligne verte dessine la flèche physique complète
             const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
             tipY = scaleY(isNaN(hGeo) ? 0 : hGeo);
         } else { 
-            // Pour les manitous, la ligne verte s'arrête exactement au crochet
             tipY = hookY; 
         }
 
@@ -690,20 +687,29 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     );
                 })}
 
-                {/* --- LA FLÈCHE --- */}
+                {/* --- COURBES ABAQUES GRUES --- */}
+                {/* On grise les courbes inactives et on met en noir (solide) celle sélectionnée */}
+                {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( 
+                    <path 
+                        key={len} 
+                        d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} 
+                        fill="none" 
+                        stroke={len === selectedBoomLen ? "#0f172a" : "#cbd5e1"} 
+                        strokeWidth={len === selectedBoomLen ? "2" : "1"} 
+                        strokeDasharray={len === selectedBoomLen ? "" : "4 2"}
+                    /> 
+                ))}
+
+                {/* --- LA FLÈCHE (Verte/Rouge) --- */}
                 <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="6" opacity="0.9" strokeLinecap="round" />
-                
-                {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 2"/> ))}
-                
                 <circle cx={pivotX} cy={pivotY} r="5" fill="#0f172a" />
 
-                {/* Câble pour les grues */}
+                {/* Câble descendant du bout de la flèche (uniquement pour les grues) */}
                 {machine.mode === 'multi_chart' && (
                     <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
                 )}
 
-                {/* Ligne pointillée verticale sous le crochet */}
-                <line x1={hookX} y1={hookY} x2={hookX} y2={scaleY(0)} stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
+                {/* Le Crochet / La charge */}
                 <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
