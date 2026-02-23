@@ -625,14 +625,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         
         const width = 600; const height = 450; 
         const padding = 50; 
-        
         const isTelehandler = machine.category === 'telehandler';
 
-        // Marge asymétrique à gauche (Moins grande puisqu'il n'y a plus de châssis dessinés)
         const paddingLeft = 80; 
         
-        const maxX = machine.maxReach * 1.1; 
-        const maxY = Math.max(machine.maxHeight * 1.1, inputHeight * 1.1, 5); 
+        const maxX = Math.max(machine.maxReach * 1.1, inputDist * 1.1); 
+        const maxY = Math.max(machine.maxHeight, inputHeight * 1.1, 5); 
         
         const scaleX = (d) => paddingLeft + (d / maxX) * (width - paddingLeft - padding); 
         const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
@@ -640,21 +638,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         const hookX = scaleX(inputDist); 
         const hookY = scaleY(inputHeight);
         
-        // --- CORRECTION : Pivot forcé à (0, 0) pour tous les types ---
         const pivotX = scaleX(0);
         const pivotY = scaleY(0);
         
-        // --- CORRECTION : La pointe de la flèche s'arrête exactement au crochet ---
-        const tipX = hookX; 
-        let tipY;
+        // CORRECTION ICI : on utilise "let" pour pouvoir modifier la valeur
+        let tipX = hookX; 
+        let tipY; 
 
-        // Pour les grues mobiles (courbes), la flèche monte jusqu'à sa longueur physique
         if (machine.mode === 'multi_chart') {
+            // Pour les grues, la ligne verte dessine la flèche physique complète
             const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
             tipY = scaleY(isNaN(hGeo) ? 0 : hGeo);
         } else { 
-            // Pour le Manitou, la ligne verte s'arrête exactement à la hauteur de levage (le crochet)
-            // Cela garantit qu'elle ne sort JAMAIS du graphique !
+            // Pour les manitous, la ligne verte s'arrête exactement au crochet
             tipY = hookY; 
         }
 
@@ -677,15 +673,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 <rect width="100%" height="100%" fill="white"/>
                 <rect x={paddingLeft} y={padding} width={width-paddingLeft-padding} height={height-2*padding} fill="url(#grid)" />
                 
-                {/* Axes Noirs */}
                 <line x1={paddingLeft} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
                 <line x1={paddingLeft} y1={padding} x2={paddingLeft} y2={height-padding} stroke="#334155" strokeWidth="2" />
                 
-                {/* Graduations Textuelles */}
                 {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={paddingLeft - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
                 
-                {/* Tracer des Zones Manitou */}
                 {zonesToDraw.map(z => {
                     let centerX = z.points.reduce((sum, p) => sum + p[0], 0) / z.points.length;
                     let centerY = z.points.reduce((sum, p) => sum + p[1], 0) / z.points.length;
@@ -697,21 +690,20 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     );
                 })}
 
-                {/* --- LA FLÈCHE (Ligne Verte ou Rouge épurée) --- */}
+                {/* --- LA FLÈCHE --- */}
                 <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="6" opacity="0.9" strokeLinecap="round" />
                 
-                {/* Courbes abaques Grues Mobiles (Grisées) */}
-                {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
+                {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 2"/> ))}
                 
-                {/* Le câble tombant (Pointillés) n'est affiché que si la pointe de la flèche est plus haute que le crochet */}
+                <circle cx={pivotX} cy={pivotY} r="5" fill="#0f172a" />
+
+                {/* Câble pour les grues */}
                 {machine.mode === 'multi_chart' && (
                     <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
                 )}
 
-                {/* Point d'attache de la flèche (Base) */}
-                <circle cx={pivotX} cy={pivotY} r="5" fill="#0f172a" />
-
-                {/* Le Crochet / La charge */}
+                {/* Ligne pointillée verticale sous le crochet */}
+                <line x1={hookX} y1={hookY} x2={hookX} y2={scaleY(0)} stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
                 <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
