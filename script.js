@@ -626,13 +626,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         const width = 600; const height = 450; 
         const padding = 50; 
         
-        // Catégories
         const isTelehandler = machine.category === 'telehandler';
-        const isMobile = machine.category === 'mobile_crane';
-        const isCrawler = machine.category === 'crawler_crane';
 
-        // Marge à gauche dynamique pour gérer l'encombrement arrière
-        const paddingLeft = isTelehandler ? 80 : 110; 
+        // Marge asymétrique à gauche (Moins grande puisqu'il n'y a plus de châssis dessinés)
+        const paddingLeft = 80; 
         
         const maxX = machine.maxReach * 1.1; 
         const maxY = Math.max(machine.maxHeight * 1.1, inputHeight * 1.1, 5); 
@@ -643,19 +640,25 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         const hookX = scaleX(inputDist); 
         const hookY = scaleY(inputHeight);
         
-        // Gestion des Points de Pivot
-        const pivotX_m = isTelehandler ? -1.5 : 0;
-        const pivotY_m = isTelehandler ? 1.5 : (isMobile ? 2.0 : 1.5);
+        // --- NOUVEAUTÉ : Origine et pointe de la flèche ---
+        // Le pivot X est TOUJOURS à 0. 
+        // Le pivot Y part de 0 pour le Manitou, et légèrement surélevé pour les grues
+        const pivotX = scaleX(0);
+        const pivotY = scaleY(isTelehandler ? 0 : 2.0);
         
-        const pivotX = scaleX(pivotX_m);
-        const pivotY = scaleY(pivotY_m);
-        
-        let tipY = scaleY(0); 
+        // La pointe X de la flèche est toujours au-dessus du crochet
         let tipX = hookX; 
+        let tipY = scaleY(0); 
+
+        // Pour les grues mobiles (courbes), la flèche monte jusqu'à sa longueur physique
         if (machine.mode === 'multi_chart') {
             const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
             tipY = scaleY(isNaN(hGeo) ? 0 : hGeo);
-        } else { tipY = scaleY(tipHeight); }
+        } else { 
+            // Pour le Manitou, la ligne verte s'arrête exactement à la hauteur de levage (le crochet)
+            // Cela garantit qu'elle ne sort JAMAIS du graphique !
+            tipY = hookY; 
+        }
 
         const gridStep = isTelehandler ? 1 : (maxX > 60 ? 10 : 5);
         let zonesToDraw = [];
@@ -676,15 +679,15 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 <rect width="100%" height="100%" fill="white"/>
                 <rect x={paddingLeft} y={padding} width={width-paddingLeft-padding} height={height-2*padding} fill="url(#grid)" />
                 
-                {/* Axes */}
+                {/* Axes Noirs */}
                 <line x1={paddingLeft} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
                 <line x1={paddingLeft} y1={padding} x2={paddingLeft} y2={height-padding} stroke="#334155" strokeWidth="2" />
                 
-                {/* Graduations */}
+                {/* Graduations Textuelles */}
                 {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={paddingLeft - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
                 
-                {/* Zones (Abaques couleur) */}
+                {/* Tracer des Zones Manitou */}
                 {zonesToDraw.map(z => {
                     let centerX = z.points.reduce((sum, p) => sum + p[0], 0) / z.points.length;
                     let centerY = z.points.reduce((sum, p) => sum + p[1], 0) / z.points.length;
@@ -696,69 +699,27 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     );
                 })}
 
-                {/* --- DESSINS DES ENGINS --- */}
+                {/* --- LA FLÈCHE (Ligne Verte ou Rouge épurée) --- */}
+                <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="6" opacity="0.9" strokeLinecap="round" />
                 
-                {/* Manitou */}
-                {isTelehandler && (
-                    <g transform={`translate(${scaleX(-2.5)}, ${scaleY(2)})`} opacity="0.8">
-                        <circle cx="50" cy="50" r="25" fill="#334155" stroke="#0f172a" strokeWidth="8" strokeDasharray="4 2"/>
-                        <circle cx="50" cy="50" r="10" fill="#94a3b8"/>
-                        <path d="M 10 50 L 10 -20 L 40 -20 L 50 -50 L 90 -50 L 100 0 L 100 50 Z" fill="#ef4444" stroke="#7f1d1d" strokeWidth="2"/>
-                        <path d="M 55 -45 L 85 -45 L 90 -5 L 50 -5 Z" fill="#bae6fd" opacity="0.5"/>
-                        <rect x="90" y="10" width="30" height="10" fill="#334155" />
-                        <rect x="115" y="-10" width="5" height="70" fill="#334155" />
-                    </g>
-                )}
-
-                {/* Grue Mobile */}
-                {isMobile && (
-                    <g opacity="0.9">
-                        <line x1={scaleX(-3)} y1={scaleY(1)} x2={scaleX(-3.5)} y2={scaleY(0)} stroke="#334155" strokeWidth="4"/>
-                        <line x1={scaleX(3)} y1={scaleY(1)} x2={scaleX(3.5)} y2={scaleY(0)} stroke="#334155" strokeWidth="4"/>
-                        <rect x={scaleX(-4)} y={scaleY(0)} width={scaleX(-3)-scaleX(-4)} height="6" fill="#0f172a"/>
-                        <rect x={scaleX(3)} y={scaleY(0)} width={scaleX(4)-scaleX(3)} height="6" fill="#0f172a"/>
-                        <rect x={scaleX(-4.5)} y={scaleY(1.5)} width={scaleX(4.5)-scaleX(-4.5)} height={scaleY(0.5)-scaleY(1.5)} fill="#f59e0b" rx="4"/>
-                        <path d={`M ${scaleX(3.5)} ${scaleY(1.5)} L ${scaleX(3.5)} ${scaleY(2.2)} L ${scaleX(4.5)} ${scaleY(2.2)} L ${scaleX(4.5)} ${scaleY(1.5)} Z`} fill="#94a3b8" stroke="#334155"/>
-                        <path d={`M ${scaleX(-1)} ${scaleY(1.5)} L ${scaleX(-1)} ${scaleY(2.8)} L ${scaleX(1.5)} ${scaleY(2.8)} L ${scaleX(1.5)} ${scaleY(1.5)} Z`} fill="#f59e0b" />
-                        <rect x={scaleX(0.5)} y={scaleY(2.8)} width={scaleX(1.5)-scaleX(0.5)} height={scaleY(1.8)-scaleY(2.8)} fill="#bae6fd" stroke="#334155"/>
-                        <rect x={scaleX(-3.5)} y={scaleY(2.5)} width={scaleX(-1)-scaleX(-3.5)} height={scaleY(1.5)-scaleY(2.5)} fill="#475569" rx="2"/>
-                    </g>
-                )}
-
-                {/* Grue Treillis */}
-                {isCrawler && (
-                    <g opacity="0.9">
-                        <rect x={scaleX(-3.5)} y={scaleY(1.2)} width={scaleX(3.5)-scaleX(-3.5)} height={scaleY(0)-scaleY(1.2)} fill="#334155" rx="10"/>
-                        <circle cx={scaleX(-2.5)} cy={scaleY(0.6)} r={scaleY(0.6)-scaleY(1.2)} fill="#64748b"/>
-                        <circle cx={scaleX(2.5)} cy={scaleY(0.6)} r={scaleY(0.6)-scaleY(1.2)} fill="#64748b"/>
-                        <path d={`M ${scaleX(-2.5)} ${scaleY(1.2)} L ${scaleX(2)} ${scaleY(1.2)} L ${scaleX(2)} ${scaleY(2.5)} L ${scaleX(-2.5)} ${scaleY(2.5)} Z`} fill="#eab308"/>
-                        <rect x={scaleX(1)} y={scaleY(2.5)} width={scaleX(2)-scaleX(1)} height={scaleY(1.5)-scaleY(2.5)} fill="#bae6fd" stroke="#334155"/>
-                        <rect x={scaleX(-4.5)} y={scaleY(2.5)} width={scaleX(-2)-scaleX(-4.5)} height={scaleY(1.2)-scaleY(2.5)} fill="#475569"/>
-                        <rect x={scaleX(-4.5)} y={scaleY(1.2)} width={scaleX(-2)-scaleX(-4.5)} height={scaleY(0.2)-scaleY(1.2)} fill="#64748b"/>
-                    </g>
-                )}
-
-                {/* Flèche Principale */}
-                {isCrawler ? (
-                    <g>
-                        <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke="#eab308" strokeWidth="8" opacity="0.9" strokeLinecap="square" />
-                        <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke="#334155" strokeWidth="6" strokeDasharray="5 5" opacity="0.7" />
-                    </g>
-                ) : (
-                    <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="6" opacity="0.9" strokeLinecap="round" />
-                )}
-                
-                {/* Courbe abaques standards (si applicable) */}
+                {/* Courbes abaques Grues Mobiles (Grisées) */}
                 {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( <path key={len} d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} fill="none" stroke={len===selectedBoomLen ? "#0f172a" : "#cbd5e1"} strokeWidth={len===selectedBoomLen ? "2" : "1"} strokeDasharray={len===selectedBoomLen ? "" : "4 2"}/> ))}
                 
-                {/* Câble */}
-                <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
+                {/* Le câble tombant (Pointillés) n'est affiché que si la pointe de la flèche est plus haute que le crochet */}
+                {machine.mode === 'multi_chart' && (
+                    <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
+                )}
+
+                {/* Point d'attache de la flèche (Base) */}
                 <circle cx={pivotX} cy={pivotY} r="5" fill="#0f172a" />
+
+                {/* Le Crochet / La charge */}
                 <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
                 <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
             </svg>
+            
             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> 
                 {isSafe ? 'ZONE SÉCURISÉE' : (isHeightValid ? 'SURCHARGE' : 'HAUTEUR IMPOSSIBLE')} 
             </div>
