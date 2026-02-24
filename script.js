@@ -517,6 +517,17 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
     
+    // --- NOUVEAU : Fonction de changement de catégorie avec réinitialisation ---
+    const handleCategoryChange = (newCat) => {
+        if (newCat !== category) {
+            setCategory(newCat);
+            // Réinitialisation des curseurs pour éviter les bugs graphiques hors-limites
+            setInputLoad(1000);
+            setInputDist(5);
+            setInputHeight(2);
+        }
+    };
+
     // Params initiaux
     useEffect(() => { 
         if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
@@ -529,6 +540,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             }
         } else { setSelectedCwt(null); } 
         if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
+        
+        // Sécurité supplémentaire : On bloque les curseurs si la nouvelle machine est plus petite que les valeurs actuelles
+        if (machine) {
+            if (inputDist > machine.maxReach + 2) setInputDist(machine.maxReach > 0 ? machine.maxReach : 5);
+            if (inputHeight > machine.maxHeight + 5) setInputHeight(machine.maxHeight > 0 ? machine.maxHeight : 2);
+        }
     }, [machine]);
 
     // --- LOGIQUE AUTO CWT ---
@@ -540,6 +557,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
             for (const cwt of sortedCwts) {
                 const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, cwt, selectedTool);
+                
                 if (cap >= inputLoad - 1) { 
                     bestCwt = cwt; 
                     found = true; 
@@ -577,9 +595,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const isSafe = isLoadSafe && isHeightValid;
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
 
-    // DÉFINITION DYNAMIQUE DU PAS (STEP) DE LA PORTÉE
-    const currentStepDist = machine?.category === 'telehandler' ? 0.25 : 0.5;
-
     const handleExcelUpload = (e) => { 
         const file = e.target.files[0]; if (!file) return; setIsUploading(true); const reader = new FileReader();
         reader.onload = async (evt) => {
@@ -615,7 +630,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }; reader.readAsBinaryString(file);
     };
     
-    const downloadTemplate = () => {
+    const downloadTemplate = () => { 
         const wb = XLSX.utils.book_new(); const sheets = [ { name: "0t", multiplier: 0.5 }, { name: "12t", multiplier: 0.8 }, { name: "24t", multiplier: 1.0 } ]; const baseData = [ ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], [3, 50, 40, null, null], [10, 20, 18, 15, 12], [30, null, null, 4, 3] ];
         sheets.forEach(sheet => { const data = baseData.map((row, i) => { if (i === 0) return row; return row.map((cell, j) => { if (j === 0 || cell === null) return cell; return Number((cell * sheet.multiplier).toFixed(1)); }); }); const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, sheet.name); }); XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
     };
@@ -687,8 +702,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     );
                 })}
 
-                {/* --- COURBES ABAQUES GRUES --- */}
-                {/* On grise les courbes inactives et on met en noir (solide) celle sélectionnée */}
                 {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( 
                     <path 
                         key={len} 
@@ -700,16 +713,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     /> 
                 ))}
 
-                {/* --- LA FLÈCHE (Verte/Rouge) --- */}
                 <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="6" opacity="0.9" strokeLinecap="round" />
                 <circle cx={pivotX} cy={pivotY} r="5" fill="#0f172a" />
 
-                {/* Câble descendant du bout de la flèche (uniquement pour les grues) */}
                 {machine.mode === 'multi_chart' && (
                     <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
                 )}
 
-                {/* Le Crochet / La charge */}
                 <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
@@ -727,7 +737,15 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
             {showDbManager && <DbManagerModal machines={localMachinesOnly} onClose={() => setShowDbManager(false)} onDelete={onDeleteLocal} onReset={onResetLocal} onImport={onImportLocal}/>}
             <div className="flex flex-wrap justify-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-                {[{id: 'telehandler', label: 'Engin Télescopique', icon: Truck}, {id: 'mobile_crane', label: 'Grue Mobile', icon: Move}, {id: 'crawler_crane', label: 'Grue Treillis', icon: Anchor}].map(cat => ( <button key={cat.id} onClick={() => setCategory(cat.id)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${category === cat.id ? 'bg-[#004e98] text-white shadow-md' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}> <cat.icon size={18} /> {cat.label} </button> ))}
+                {[{id: 'telehandler', label: 'Engin Télescopique', icon: Truck}, {id: 'mobile_crane', label: 'Grue Mobile', icon: Move}, {id: 'crawler_crane', label: 'Grue Treillis', icon: Anchor}].map(cat => ( 
+                    <button 
+                        key={cat.id} 
+                        onClick={() => handleCategoryChange(cat.id)} 
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${category === cat.id ? 'bg-[#004e98] text-white shadow-md' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}
+                    > 
+                        <cat.icon size={18} /> {cat.label} 
+                    </button> 
+                ))}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-4 space-y-6">
@@ -737,7 +755,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <div className="mb-4">
                             <label className="block text-xs font-bold text-slate-500 mb-1">Sélectionner dans la BDD (Globale & Locale)</label>
                             <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
-                                    {filteredMachines.map(m => ( <option key={m.id} value={m.id}> {m.name} {m.source === 'local' ? ` [Local - ${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : 'Ancien'}]` : (m.source === 'external' ? " [BDD GitHub]" : " [Système]")} </option> ))}
+                                    {filteredMachines.map(m => ( 
+                                        <option key={m.id} value={m.id}> 
+                                            {/* NOUVEAU : Suppression des mentions inutiles dans le sélecteur */}
+                                            {m.name} {m.source === 'local' ? ` [Local - ${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : 'Ancien'}]` : ""} 
+                                        </option> 
+                                    ))}
                             </select>
                         </div>
                         {machine && (
@@ -788,7 +811,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             )}
 
                             <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
-                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
+                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={machine?.category === 'telehandler' ? 0.25 : 0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
@@ -832,7 +855,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         </div>
     );
 };
-
 const App = () => {
     const [page, setPage] = useState('home');
     const [localMachines, setLocalMachines] = useState([]); const [externalMachines, setExternalMachines] = useState([]);
