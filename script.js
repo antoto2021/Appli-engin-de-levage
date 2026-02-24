@@ -166,40 +166,115 @@ const exportCraneExcel = (machine) => {
     XLSX.writeFile(wb, `${machine.name}_abaque_${formatDateTime()}.xlsx`);
 };
 
-const generateAdequacyPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt) => {
+const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, chantierName) => {
     if (!machine) return;
-    const doc = new jsPDF();
-    doc.setFillColor(0, 78, 152); doc.rect(0, 0, 210, 25, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont("helvetica", "bold");
-    doc.text("ADÉQUATION DE LEVAGE", 105, 12, { align: "center" });
+    const doc = new jsPDF('landscape'); // Format Paysage pour coller à la maquette
+    
+    // --- EN-TÊTE ---
+    doc.setFillColor(0, 78, 152);
+    doc.rect(14, 10, 40, 15, 'F'); // Faux Logo Chantiers Modernes
+    doc.setFillColor(217, 46, 46);
+    doc.rect(14, 25, 40, 5, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+    doc.text("CMC", 34, 19, { align: "center" });
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(16);
+    doc.text(`Pré dimensionnement\npour le chantier ${chantierName || "Non renseigné"}`, 140, 18, { align: "center" });
+    
     doc.setFontSize(10); doc.setFont("helvetica", "normal");
-    doc.text("Généré le : " + new Date().toLocaleString(), 105, 19, { align: "center" });
+    doc.text(`Généré le : ${new Date().toLocaleDateString()}`, 270, 18, { align: "right" });
+    doc.line(14, 35, 280, 35); // Ligne de séparation
 
-    let y = 40;
-    doc.setTextColor(0, 0, 0); doc.setFontSize(12); doc.setFont("helvetica", "bold");
-    doc.text("1. PARAMÈTRES DE LA CHARGE", 14, y); y += 8;
-    doc.autoTable({ startY: y, head: [['Masse à lever', 'Portée (Rayon)', 'Hauteur']], body: [[`${inputLoad} kg`, `${inputDist} m`, `${inputHeight} m`]], theme: 'striped', headStyles: { fillColor: [0, 78, 152] } });
-    y = doc.lastAutoTable.finalY + 15;
+    // --- COLONNE GAUCHE (Besoin de levage) ---
+    let yLeft = 45;
+    doc.setFontSize(14); doc.setFont("helvetica", "bold");
+    doc.text("Besoin de levage identifié", 14, yLeft); yLeft += 8;
+    doc.setFontSize(11); doc.setFont("helvetica", "normal");
+    const loadTons = (inputLoad / 1000).toFixed(2);
+    doc.text(`Masse à lever : ${loadTons} tonnes`, 14, yLeft); yLeft += 6;
+    doc.text(`Portée : ${inputDist} m`, 14, yLeft); yLeft += 6;
+    if (machine.category === 'telehandler') {
+        doc.text(`Hauteur (Télescopique) : ${inputHeight} m`, 14, yLeft);
+    }
 
-    doc.setFontSize(12); doc.setFont("helvetica", "bold");
-    doc.text("2. ENGIN SÉLECTIONNÉ", 14, y); y += 8;
-    let configDetails = "";
-    if(machine.hasCounterweights && currentCwt) { configDetails = `Contrepoids: ${currentCwt}`; }
-    doc.autoTable({ startY: y, head: [['Modèle', 'Type', 'Config', 'Source']], body: [[machine.name, machine.category, configDetails || "Standard", machine.source === 'external' ? 'Externe' : (machine.source === 'system' ? 'Système' : 'Locale')]], theme: 'grid', headStyles: { fillColor: [100, 100, 100] } });
-    y = doc.lastAutoTable.finalY + 15;
+    // --- COLONNE DROITE (Engin) ---
+    let yRight = 45;
+    doc.setFontSize(14); doc.setFont("helvetica", "bold");
+    doc.text("Engin pré dimensionné", 140, yRight); yRight += 8;
+    doc.setFontSize(11); doc.setFont("helvetica", "normal");
+    doc.text(`Nom engin : ${machine.name}`, 140, yRight); yRight += 6;
+    doc.text(`Famille d'engin : ${machine.category}`, 140, yRight); yRight += 6;
+    doc.text(`Capacité max : ${machine.maxLoad / 1000} tonnes`, 140, yRight); yRight += 6;
+    doc.text(`Portée max : ${machine.maxReach} m`, 140, yRight); yRight += 6;
+    doc.text(`Hauteur max : ${machine.maxHeight} m`, 140, yRight); yRight += 6;
+    if (machine.hasCounterweights && currentCwt) {
+        doc.text(`Masse contre-poids : ${currentCwt} t`, 140, yRight);
+    }
 
-    doc.text("3. RÉSULTAT DU CALCUL", 14, y); y += 8;
-    const status = isSafe ? "CONFORME / AUTORISÉ" : "NON CONFORME / INTERDIT";
-    const color = isSafe ? [22, 163, 74] : [220, 38, 38];
-    doc.autoTable({ startY: y, head: [['Statut', 'Capacité à cette portée', 'Taux d\'utilisation']], body: [[status, `${safeLoad} kg`, `${Math.round((inputLoad/safeLoad)*100)} %`]], headStyles: { fillColor: color }, styles: { fontSize: 12, fontStyle: 'bold' } });
-    y = doc.lastAutoTable.finalY + 15;
+    // --- SECTION RÉSULTAT (Bas de page gauche) ---
+    let yRes = 130;
+    doc.setFontSize(14); doc.setFont("helvetica", "bold");
+    doc.text("Résultat du prédimensionnement", 14, yRes); yRes += 8;
+    doc.setFontSize(12); doc.setFont("helvetica", "normal");
+    
+    if (machine.mode === 'multi_chart' && selectedBoomLen) {
+        doc.text(`Longueur de flèche : ${selectedBoomLen} m`, 14, yRes); yRes += 7;
+    }
+    doc.text(`Capacité à cette portée : ${(safeLoad / 1000).toFixed(2)} tonnes`, 14, yRes); yRes += 7;
+    doc.text(`Taux d'utilisation : ${Math.round((inputLoad / safeLoad) * 100)} %`, 14, yRes); yRes += 7;
+    
+    doc.setFont("helvetica", "bold");
+    if (isSafe) {
+        doc.setTextColor(22, 163, 74); // Vert
+        doc.text("Levage autorisé : OUI", 14, yRes);
+    } else {
+        doc.setTextColor(220, 38, 38); // Rouge
+        doc.text("Levage autorisé : NON", 14, yRes);
+    }
+    doc.setTextColor(0,0,0); // Reset
 
-    doc.text("4. CONCLUSION", 14, y); y += 10;
-    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-    const text = isSafe ? "L'adéquation est VALIDÉE. L'engin sélectionné dispose de la capacité nécessaire pour effectuer la manœuvre en sécurité." : "L'adéquation est REFUSÉE. L'engin ne dispose pas de la capacité suffisante ou la configuration est hors abaque.";
-    doc.text(doc.splitTextToSize(text, 180), 14, y); y += 30;
-    doc.line(14, y, 196, y); y += 10; doc.text("Signature :", 14, y);
-    doc.save(`${machine.name}_adequation_levage_${formatDateTime()}.pdf`);
+    // --- ABAQUE / TABLEAU (A droite) ---
+    // Au lieu de l'image, on génère le tableau exact de l'abaque pour cette flèche !
+    if (machine.mode === 'multi_chart' && selectedBoomLen) {
+        let points = machine.hasCounterweights ? machine.charts[currentCwt]?.[selectedBoomLen]?.std : machine.charts[selectedBoomLen]?.std;
+        if (points) {
+            const tableData = points.map(p => {
+                // On met une astérisque sur la ligne qui correspond à notre portée
+                const isTarget = Math.abs(p.d - inputDist) <= 0.6; // Tolérance pour trouver la ligne
+                return [
+                    isTarget ? `> ${p.d} <` : p.d, 
+                    p.l
+                ];
+            });
+
+            doc.autoTable({
+                startY: 100,
+                margin: { left: 140 },
+                tableWidth: 120,
+                head: [[`Portée (m)`, `Capacité (t) [Flèche ${selectedBoomLen}m]`]],
+                body: tableData,
+                theme: 'striped',
+                headStyles: { fillColor: [0, 78, 152] },
+                styles: { fontSize: 8, cellPadding: 2 },
+                createdCell: function (hookData) {
+                    // Mettre en gras et rouge la ligne sélectionnée
+                    if (hookData.cell.raw && hookData.cell.raw.toString().includes('>')) {
+                        hookData.cell.styles.fontStyle = 'bold';
+                        hookData.cell.styles.textColor = [220, 38, 38];
+                    }
+                }
+            });
+        }
+    } else if (machine.mode === 'zone') {
+         doc.setFontSize(10); doc.setFont("helvetica", "italic");
+         doc.text("[Abaque par zones couleur - Voir application pour le détail visuel]", 140, 110);
+    }
+
+    // Nom propre pour l'export
+    const safeChantier = (chantierName || "Chantier").replace(/[^a-zA-Z0-9]/g, '_');
+    doc.save(`Predimensionnement_${safeChantier}_${formatDateTime()}.pdf`);
 };
 
 const CMCLogo = () => (
@@ -499,6 +574,75 @@ const DeterminePage = ({ allMachines }) => {
     );
 };
 
+const PredimModal = ({ machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, onClose }) => {
+    const [chantierName, setChantierName] = useState("");
+
+    const handleDownload = () => {
+        if (!chantierName.trim()) { alert("Veuillez indiquer un nom de chantier."); return; }
+        generatePredimPDF(machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, chantierName);
+    };
+
+    const handleSendMail = () => {
+        if (!chantierName.trim()) { alert("Veuillez indiquer un nom de chantier."); return; }
+        
+        const subject = encodeURIComponent(`[${chantierName}] Prédimensionnement ${machine.category === 'telehandler' ? 'Télescopique' : 'Grue'} - ${new Date().toLocaleDateString()}`);
+        const body = encodeURIComponent(
+            `Bonjour l'équipe,\n\nVeuillez trouver ci-joint le prédimensionnement de levage pour le chantier : ${chantierName}.\n\n` +
+            `Détails rapides :\n` +
+            `- Engin : ${machine.name}\n` +
+            `- Masse : ${inputLoad / 1000} t\n` +
+            `- Portée : ${inputDist} m\n` +
+            `- Statut : ${isSafe ? 'CONFORME' : 'NON CONFORME'}\n\n` +
+            `⚠️ N'oubliez pas d'insérer le PDF téléchargé en pièce jointe de cet e-mail !\n\nCordialement.`
+        );
+        
+        // Ouvre le client mail par défaut
+        window.location.href = `mailto:methodes@vinci.com,qpe@vinci.com?subject=${subject}&body=${body}`;
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 animate-slide-up border-t-8 border-[#004e98] relative">
+                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+                
+                <h2 className="text-2xl font-black text-slate-800 mb-2">Prédimensionnement</h2>
+                <p className="text-slate-500 text-sm mb-6">Préparez le document officiel pour validation par les équipes Méthodes et QPE.</p>
+
+                <div className="mb-6">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Nom du Chantier / Opération *</label>
+                    <input 
+                        type="text" 
+                        value={chantierName} 
+                        onChange={(e) => setChantierName(e.target.value)} 
+                        placeholder="Ex: Pôle Gare - Levage CTA"
+                        className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#004e98] outline-none"
+                    />
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-slate-500">Engin :</span> <span className="font-bold">{machine.name}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Taux d'utilisation :</span> <span className="font-bold">{Math.round((inputLoad / safeLoad) * 100)} %</span></div>
+                    <div className="flex justify-between border-t border-slate-200 pt-2 mt-2">
+                        <span className="text-slate-500">Statut :</span> 
+                        <span className={`font-bold ${isSafe ? 'text-green-600' : 'text-red-600'}`}>{isSafe ? 'AUTORISÉ' : 'INTERDIT'}</span>
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    <button onClick={handleDownload} className="w-full bg-[#004e98] hover:bg-[#003b75] text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                        <Download size={18} /> 1. Télécharger le PDF
+                    </button>
+                    
+                    <button onClick={handleSendMail} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                        <span>✉️</span> 2. Envoyer par mail (Méthodes & QPE)
+                    </button>
+                    <p className="text-[10px] text-slate-400 text-center italic mt-2">Note: Le navigateur ne pouvant joindre le PDF automatiquement au mail, pensez à le glisser dans votre message.</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onImportLocal }) => {
     const [showDbManager, setShowDbManager] = useState(false);
     const localMachinesOnly = useMemo(() => allMachines.filter(m => m.source === 'local'), [allMachines]);
@@ -517,6 +661,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     
     const [isAutoCwt, setIsAutoCwt] = useState(false); 
     const [isUploading, setIsUploading] = useState(false);
+    const [isPredimModalOpen, setIsPredimModalOpen] = useState(false);
 
     // Initialisation & Chargement
     useEffect(() => {
@@ -758,6 +903,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> 
                 {isSafe ? 'ZONE SÉCURISÉE' : (isHeightValid ? 'SURCHARGE' : 'HAUTEUR IMPOSSIBLE')} 
             </div>
+            {isPredimModalOpen && (
+                <PredimModal 
+                    machine={machine}
+                    inputLoad={inputLoad}
+                    inputDist={inputDist}
+                    inputHeight={inputHeight}
+                    isSafe={isSafe}
+                    safeLoad={safeLoad}
+                    currentCwt={selectedCwt}
+                    selectedBoomLen={selectedBoomLen}
+                    onClose={() => setIsPredimModalOpen(false)}
+                />
+            )}
         </div>
         );
     };
@@ -794,8 +952,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         </div>
                         {machine && (
                             <div className="flex gap-2 mb-4">
-                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque .xlsx</button>
-                                <button onClick={() => generateAdequacyPDF(machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, selectedCwt)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Rapport .pdf</button>
+                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors">
+                                    <FileText size={14}/> Abaque.xlsx
+                                </button>
+                                {/* NOUVEAU BOUTON PRÉDIMENSIONNEMENT */}
+                                <button onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors">
+                                    <FileText size={14}/> Prédimensionnement
+                                </button>
                             </div>
                         )}
                         <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
