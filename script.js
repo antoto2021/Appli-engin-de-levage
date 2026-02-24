@@ -241,10 +241,39 @@ const CustomRange = ({ label, value, min, max, step, onChange, unit = "", maxLab
 };
 
 const DbManagerModal = ({ machines, onClose, onDelete, onReset, onImport }) => {
+    // --- NOUVELLE FONCTION D'EXPORT FORMATÉ ---
     const downloadJson = () => {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(machines));
-        const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "cmc_levage_backup.json"); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
+        // 1. On convertit en JSON avec des indentations (2 espaces)
+        let jsonStr = JSON.stringify(machines, null, 2);
+
+        // 2. On compresse les coordonnées des Grues { "d": X, "l": Y } sur une seule ligne
+        jsonStr = jsonStr.replace(/\{\s*"d":\s*([-\d.]+),\s*"l":\s*([-\d.]+)\s*\}/g, '{ "d": $1, "l": $2 }');
+
+        // 3. On compresse les coordonnées des Manitous [X, Y] sur une seule ligne
+        jsonStr = jsonStr.replace(/\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]/g, '[$1, $2]');
+
+        // 4. On force certains petits tableaux à tenir sur une seule ligne au lieu d'un élément par ligne
+        const arraysToCompress = ["boomLengths", "counterweights", "tools", "points"];
+        arraysToCompress.forEach(key => {
+            const regex = new RegExp(`"${key}":\\s*\\[([\\s\\S]*?)\\]`, 'g');
+            jsonStr = jsonStr.replace(regex, (match, content) => {
+                // Remplace les sauts de ligne à l'intérieur du tableau par de simples espaces
+                return `"${key}": [` + content.replace(/\s*\n\s*/g, ' ').trim() + `]`;
+            });
+        });
+
+        // 5. Création et téléchargement du fichier (Méthode Blob plus robuste pour les gros fichiers)
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const downloadAnchorNode = document.createElement('a'); 
+        downloadAnchorNode.setAttribute("href", url); 
+        downloadAnchorNode.setAttribute("download", "cmc_levage_backup.json"); 
+        document.body.appendChild(downloadAnchorNode); 
+        downloadAnchorNode.click(); 
+        downloadAnchorNode.remove();
+        URL.revokeObjectURL(url);
     };
+    
     const handleFileImport = (e) => {
         const file = e.target.files[0]; if (!file) return;
         const reader = new FileReader();
