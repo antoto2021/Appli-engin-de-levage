@@ -204,7 +204,7 @@ const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, s
     
     // --- EN-TÊTE ---
     // Ajout du vrai logo
-    doc.addImage('logo.png', 'PNG', 14, 10, 75, 22);
+    doc.addImage('logo.png', 'PNG', 14, 10, 105, 32);
     
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(16);
@@ -262,53 +262,91 @@ const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, s
     }
     doc.setTextColor(0,0,0); // Reset
 
-    // --- ABAQUE / TABLEAU (A droite) ---
-    // Au lieu de l'image, on génère le tableau exact de l'abaque pour cette flèche !
+    // --- ABAQUE COMPLET EN TABLEAU (A droite) ---
     if (machine.mode === 'multi_chart' && selectedBoomLen) {
-        let points = machine.hasCounterweights ? machine.charts[currentCwt]?.[selectedBoomLen]?.std : machine.charts[selectedBoomLen]?.std;
-        if (points) {
-            const tableData = points.map(p => {
-                // On met une astérisque sur la ligne qui correspond à notre portée
-                const isTarget = Math.abs(p.d - inputDist) <= 0.6; // Tolérance pour trouver la ligne
-                return [
-                    isTarget ? `> ${p.d} <` : p.d, 
-                    p.l
-                ];
+        const boomLengths = machine.boomLengths;
+        const cwtData = machine.hasCounterweights ? machine.charts[currentCwt] : machine.charts;
+
+        if (cwtData) {
+            // 1. Collecter et trier toutes les portées (rayons) existantes pour ce contrepoids
+            let allRadii = new Set();
+            boomLengths.forEach(len => {
+                if (cwtData[len] && cwtData[len].std) {
+                    cwtData[len].std.forEach(p => allRadii.add(p.d));
+                }
+            });
+            const sortedRadii = Array.from(allRadii).sort((a,b) => a - b);
+
+            // 2. Trouver la portée la plus proche (ou immédiatement supérieure) pour la mettre en évidence
+            let targetRadius = sortedRadii.find(r => r >= inputDist);
+            if (targetRadius === undefined && sortedRadii.length > 0) targetRadius = sortedRadii[sortedRadii.length - 1];
+
+            // 3. Construction des entêtes et des lignes du tableau
+            const tableHead = [["Portée", ...boomLengths.map(b => `${b}m`)]];
+            const tableBody = sortedRadii.map(r => {
+                let row = [r];
+                boomLengths.forEach(len => {
+                    const pts = cwtData[len]?.std || [];
+                    const pt = pts.find(p => p.d === r);
+                    row.push(pt ? pt.l : "-");
+                });
+                return row;
             });
 
+            // 4. Index de la colonne cible (+1 car la colonne 0 est la portée)
+            const targetBoomIndex = boomLengths.indexOf(selectedBoomLen) + 1;
+
+            doc.setFontSize(10); doc.setFont("helvetica", "bold");
+            doc.text(`Extrait de l'abaque (CWT: ${currentCwt ? currentCwt+'t' : 'N/A'})`, 140, 95);
+
+            // 5. Génération du tableau avec coloration dynamique de la cellule
             doc.autoTable({
                 startY: 100,
-                margin: { left: 140 },
-                tableWidth: 120,
-                head: [[`Portée (m)`, `Capacité (t) [Flèche ${selectedBoomLen}m]`]],
-                body: tableData,
-                theme: 'striped',
-                headStyles: { fillColor: [0, 78, 152] },
-                styles: { fontSize: 8, cellPadding: 2 },
-                createdCell: function (hookData) {
-                    // Mettre en gras et rouge la ligne sélectionnée
-                    if (hookData.cell.raw && hookData.cell.raw.toString().includes('>')) {
-                        hookData.cell.styles.fontStyle = 'bold';
-                        hookData.cell.styles.textColor = [220, 38, 38];
+                margin: { left: 140, bottom: 10 },
+                tableWidth: 140, // Occupe la moitié droite du document PDF (Paysage)
+                head: tableHead,
+                body: tableBody,
+                theme: 'grid',
+                headStyles: { fillColor: [0, 78, 152], fontSize: 6, halign: 'center', textColor: 255 },
+                styles: { fontSize: 6, cellPadding: 1, halign: 'center', textColor: 40 },
+                didParseCell: function (data) {
+                    if (data.section === 'body') {
+                        const isTargetCol = data.column.index === targetBoomIndex;
+                        const isTargetRow = data.row.raw[0] === targetRadius;
+
+                        // Croisement exact (Cellule Cible) => Fond ROUGE, Texte BLANC
+                        if (isTargetCol && isTargetRow) {
+                            data.cell.styles.fillColor = [220, 38, 38]; 
+                            data.cell.styles.textColor = [255, 255, 255];
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                        // Colonne de la flèche sélectionnée => Gris très clair
+                        else if (isTargetCol) {
+                            data.cell.styles.fillColor = [241, 245, 249]; 
+                        }
+                        // Ligne de la portée actuelle => Gris très clair
+                        else if (isTargetRow) {
+                            data.cell.styles.fillColor = [241, 245, 249]; 
+                        }
                     }
                 }
             });
         }
     } else if (machine.mode === 'zone') {
          doc.setFontSize(10); doc.setFont("helvetica", "italic");
-         doc.text("[Abaque par zones couleur - Voir application pour le détail visuel]", 140, 110);
+         doc.text("[Abaque par zones couleur - Voir application pour le détail visuel]", 140, 100);
     }
 
     // Nom propre pour l'export
     const safeChantier = (chantierName || "Chantier").replace(/[^a-zA-Z0-9]/g, '_');
-    doc.save(`Predimensionnement_${safeChantier}_${formatDateTime()}.pdf`);
+    doc.save(`Predim_${safeChantier}_${formatDateTime()}.pdf`);
 };
 
 const CMCLogo = () => (
     <img 
         src="logo.png" 
         alt="Chantiers Modernes Construction" 
-        className="h-14 object-contain cursor-pointer hover:opacity-80 transition-opacity" 
+        className="h-18 object-contain cursor-pointer hover:opacity-80 transition-opacity" 
     />
 );
 
@@ -750,7 +788,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     
     // Inputs (Le Besoin)
     const [inputLoad, setInputLoad] = useState(1000); 
-    const [inputDist, setInputDist] = useState(5); 
+    const [inputDist, setInputDist] = useState(3); 
     const [inputHeight, setInputHeight] = useState(2);
     
     // Configuration (La Solution)
@@ -809,7 +847,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const handleCategoryChange = (newCat) => {
         if (newCat !== category) {
             setCategory(newCat);
-            setInputLoad(1000); setInputDist(5); setInputHeight(2);
+            
+            // Si on clique sur "Engin Télescopique"
+            if (newCat === 'telehandler') {
+                setInputLoad(1000);  // Masse par défaut : 2 tonnes (2000 kg)
+                setInputDist(3);     // Portée par défaut : 3 m
+                setInputHeight(2);   // Hauteur par défaut : 4 m
+            } 
+            // Si on clique sur "Grue Mobile" ou "Grue Treillis"
+            else {
+                setInputLoad(5000);  // Masse par défaut : 1 tonne (1000 kg)
+                setInputDist(5);    // Portée par défaut : 10 m
+                setInputHeight(2);   // Hauteur par défaut : 2 m
+            }
         }
     };
 
