@@ -135,9 +135,16 @@ const exportCraneExcel = (machine) => {
 
     const createSheetForData = (chartData, sheetName) => {
          let ws_data = [];
+         
+         // 1. Ajout du Titre (Nom de la machine)
+         ws_data.push([`Abaque : ${machine.name}`, "", ""]);
+         // 2. Ajout d'une ligne vide pour aérer la présentation
+         ws_data.push([]); 
+
          const boomLengths = machine.boomLengths;
          const header = ["Portée (m)", ...boomLengths.map(b => `Flèche ${b}m`)];
          ws_data.push(header);
+         
          let allRadii = new Set();
          boomLengths.forEach(len => { if (chartData[len]?.std) { chartData[len].std.forEach(p => allRadii.add(p.d)); } });
          const sortedRadii = Array.from(allRadii).sort((a,b) => a - b);
@@ -150,20 +157,45 @@ const exportCraneExcel = (machine) => {
              });
              ws_data.push(row);
          });
+         
          const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+         // 3. Fusion des cellules A1, B1 et C1
+         // s = start (début), e = end (fin), r = row (ligne), c = col (colonne). (L'index commence à 0)
+         if(!ws['!merges']) ws['!merges'] = [];
+         ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } });
+
          XLSX.utils.book_append_sheet(wb, ws, sheetName);
     };
 
     if (machine.mode === 'multi_chart') {
         if(machine.hasCounterweights) { machine.counterweights.forEach(cwt => { createSheetForData(machine.charts[cwt], cwt); }); } 
         else { createSheetForData(machine.charts, "Abaque"); }
-    } else if (machine.mode === 'zone') {
-        let ws_data = [["Zone ID", "Charge Max (kg)"]];
-        machine.zones.forEach(z => { ws_data.push([z.id, z.load]); });
+    } else if (machine.mode === 'zone' || machine.mode === 'zone_multi_tool') {
+        let ws_data = [
+            [`Abaque : ${machine.name}`, "", ""], // Ligne 1 (Titre)
+            [], // Ligne 2 (Vide)
+            ["Zone ID", "Charge Max (kg)"] // Ligne 3 (Entêtes)
+        ];
+        
+        let zonesToExport = machine.zones || [];
+        if (machine.mode === 'zone_multi_tool' && machine.tools?.length > 0) {
+            zonesToExport = machine.charts[machine.tools[0]].zones; 
+        }
+
+        zonesToExport.forEach(z => { ws_data.push([z.id, z.load]); });
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+        // Fusion des cellules A1:C1 pour le mode zone
+        if(!ws['!merges']) ws['!merges'] = [];
+        ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } });
+
         XLSX.utils.book_append_sheet(wb, ws, "Zones");
     }
-    XLSX.writeFile(wb, `${machine.name}_abaque_${formatDateTime()}.xlsx`);
+    
+    // Nettoyage du nom de fichier pour éviter les caractères spéciaux
+    const safeName = machine.name.replace(/[^a-zA-Z0-9]/g, '_');
+    XLSX.writeFile(wb, `${safeName}_abaque_${formatDateTime()}.xlsx`);
 };
 
 const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, chantierName) => {
@@ -171,13 +203,8 @@ const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, s
     const doc = new jsPDF('landscape'); // Format Paysage pour coller à la maquette
     
     // --- EN-TÊTE ---
-    doc.setFillColor(0, 78, 152);
-    doc.rect(14, 10, 40, 15, 'F'); // Faux Logo Chantiers Modernes
-    doc.setFillColor(217, 46, 46);
-    doc.rect(14, 25, 40, 5, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold"); doc.setFontSize(12);
-    doc.text("CMC", 34, 19, { align: "center" });
+    // Ajout du vrai logo
+    doc.addImage('logo.png', 'PNG', 14, 10, 55, 16); 
     
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(16);
@@ -278,17 +305,11 @@ const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, s
 };
 
 const CMCLogo = () => (
-    <svg width="220" height="50" viewBox="0 0 220 50" className="cursor-pointer">
-        <g transform="translate(5, 5)">
-            <path d="M 10 0 L 30 0 L 40 10 L 40 18 L 0 18 L 0 10 Z" fill="#004e98" />
-            <path d="M 0 22 L 40 22 L 40 30 L 30 40 L 10 40 L 0 30 Z" fill="#d92e2e" />
-        </g>
-        <g transform="translate(55, 0)">
-            <text x="0" y="20" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="18" fill="#004e98" letterSpacing="0.5">CHANTIERS</text>
-            <text x="0" y="36" fontFamily="Arial, sans-serif" fontWeight="900" fontSize="18" fill="#004e98" letterSpacing="0.5">MODERNES</text>
-            <text x="0" y="48" fontFamily="Arial, sans-serif" fontWeight="bold" fontSize="10" fill="#004e98" letterSpacing="1">CONSTRUCTION</text>
-        </g>
-    </svg>
+    <img 
+        src="logo.png" 
+        alt="Chantiers Modernes Construction" 
+        className="h-10 object-contain cursor-pointer hover:opacity-80 transition-opacity" 
+    />
 );
 
 const CustomRange = ({ label, value, min, max, step, onChange, unit = "", maxLabel = "" }) => {
@@ -447,19 +468,23 @@ const DeterminePage = ({ allMachines }) => {
     const [distance, setDistance] = useState(0); const [height, setHeight] = useState(5);
     const [maxUsagePercent, setMaxUsagePercent] = useState(80);
     const [progress, setProgress] = useState(0); const [result, setResult] = useState(null); const [suggestedCrane, setSuggestedCrane] = useState(null);
+    
+    // NOUVEAU : État pour gérer la modale de Prédimensionnement
+    const [modalData, setModalData] = useState(null);
 
     const performAutoSelect = (targetMassKg, targetDist, targetHeight) => {
         const candidates = [];
+
+        const categoryPriority = {
+            'telehandler': 1,     
+            'mobile_crane': 2,    
+            'crawler_crane': 3    
+        };
+
         allMachines.forEach(m => {
-            // CORRECTION ICI : Appel au nouveau Moteur
-            const cap = CraneCalculator.getCapacity(m, targetDist, targetHeight, null, null, null);
-            
-            // Pour les grues mobiles en mode "Déterminer", on teste la meilleure config interne
-            // Note: CraneCalculator gère mal le "null" pour boom/cwt en interne pour le multi_chart
-            // On doit faire une boucle locale pour trouver le max de la machine
             let maxCapMachine = 0;
+            
             if (m.mode === 'multi_chart') {
-                // On teste toutes les flèches et contrepoids pour trouver le max possible
                 const booms = m.boomLengths || [];
                 const cwts = m.hasCounterweights ? m.counterweights : [null];
                 cwts.forEach(c => {
@@ -469,17 +494,35 @@ const DeterminePage = ({ allMachines }) => {
                     });
                 });
             } else {
-                maxCapMachine = cap; // Pour les télescopiques, le calcul est direct
+                maxCapMachine = CraneCalculator.getCapacity(m, targetDist, targetHeight, null, null, null);
             }
 
             const usage = maxCapMachine > 0 ? (targetMassKg / maxCapMachine) * 100 : 999;
+            
             if (maxCapMachine >= targetMassKg && usage <= maxUsagePercent) { 
-                candidates.push({ machine: m, capacity: maxCapMachine, excess: maxCapMachine - targetMassKg, usage: usage }); 
+                candidates.push({ 
+                    machine: m, 
+                    capacity: maxCapMachine, 
+                    usage: usage,
+                    priority: categoryPriority[m.category] || 99
+                }); 
             }
         });
-        candidates.sort((a, b) => a.capacity - b.capacity);
-        if (candidates.length > 0) { const best = candidates[0].machine; setSuggestedCrane(best); localStorage.setItem(SELECTED_CRANE_KEY, JSON.stringify(best)); } 
-        else { setSuggestedCrane(null); localStorage.removeItem(SELECTED_CRANE_KEY); }
+
+        candidates.sort((a, b) => {
+            if (a.priority !== b.priority) { return a.priority - b.priority; }
+            return a.capacity - b.capacity;
+        });
+
+        if (candidates.length > 0) { 
+            const best = candidates[0].machine; 
+            setSuggestedCrane(best); 
+            localStorage.setItem(SELECTED_CRANE_KEY, JSON.stringify(best)); 
+        } 
+        else { 
+            setSuggestedCrane(null); 
+            localStorage.removeItem(SELECTED_CRANE_KEY); 
+        }
     };
 
     useEffect(() => {
@@ -487,14 +530,98 @@ const DeterminePage = ({ allMachines }) => {
             setProgress(0); setResult(null); setSuggestedCrane(null);
             const interval = setInterval(() => {
                 setProgress(p => {
-                    if (p >= 100) { clearInterval(interval); const massInTons = unit === 'kg' ? mass / 1000 : mass; const massKg = unit === 'kg' ? mass : mass * 1000; const moment = massInTons * distance; setResult({ tons: massInTons, moment: moment.toFixed(1) }); performAutoSelect(massKg, distance, height); return 100; } return p + 4;
+                    if (p >= 100) { 
+                        clearInterval(interval); 
+                        const massInTons = unit === 'kg' ? mass / 1000 : mass; 
+                        const massKg = unit === 'kg' ? mass : mass * 1000; 
+                        const moment = massInTons * distance; 
+                        setResult({ tons: massInTons, moment: moment.toFixed(1) }); 
+                        performAutoSelect(massKg, distance, height); 
+                        return 100; 
+                    } 
+                    return p + 4;
                 });
             }, 20); return () => clearInterval(interval);
         } else { setResult(null); setProgress(0); setSuggestedCrane(null); }
     }, [mass, unit, distance, height, maxUsagePercent, allMachines]); 
 
+    // NOUVEAU : Fonction pour ouvrir le prédimensionnement avec la meilleure config
+    const openPredimModal = () => {
+        if (!suggestedCrane) return;
+        
+        const targetMassKg = unit === 'kg' ? mass : mass * 1000;
+        let bestCwt = null;
+        let bestBoom = null;
+        let finalCap = 0;
+        let found = false;
+
+        if (suggestedCrane.mode === 'multi_chart') {
+            const sortedCwts = suggestedCrane.hasCounterweights ? [...suggestedCrane.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b)) : [null];
+            const sortedBooms = [...suggestedCrane.boomLengths].sort((a, b) => parseFloat(a) - parseFloat(b));
+
+            for (const cwt of sortedCwts) {
+                for (const boom of sortedBooms) {
+                    if (boom <= distance) continue;
+                    
+                    const angleRad = Math.acos(distance / boom);
+                    const angleDeg = angleRad * (180 / Math.PI);
+                    if (angleDeg < 35) continue;
+
+                    const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(distance, 2));
+                    if (tipH < height) continue;
+
+                    const cap = CraneCalculator.getCapacity(suggestedCrane, distance, height, boom, cwt, null);
+                    
+                    if (cap >= targetMassKg) {
+                        bestCwt = cwt;
+                        bestBoom = boom;
+                        finalCap = cap;
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+
+            if (!found && sortedCwts.length > 0 && sortedBooms.length > 0) {
+                bestCwt = sortedCwts[sortedCwts.length - 1];
+                bestBoom = sortedBooms[sortedBooms.length - 1];
+                finalCap = CraneCalculator.getCapacity(suggestedCrane, distance, height, bestBoom, bestCwt, null);
+            }
+        } else {
+            finalCap = CraneCalculator.getCapacity(suggestedCrane, distance, height, null, null, null);
+        }
+
+        setModalData({
+            machine: suggestedCrane,
+            inputLoad: targetMassKg,
+            inputDist: distance,
+            inputHeight: height,
+            isSafe: true, 
+            safeLoad: finalCap,
+            currentCwt: bestCwt,
+            selectedBoomLen: bestBoom
+        });
+    };
+
     return (
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-start min-h-[60vh] animate-fade-in">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-start min-h-[60vh] animate-fade-in relative">
+            
+            {/* NOUVEAU : Affichage de la modale si les données sont prêtes */}
+            {modalData && (
+                <PredimModal 
+                    machine={modalData.machine}
+                    inputLoad={modalData.inputLoad}
+                    inputDist={modalData.inputDist}
+                    inputHeight={modalData.inputHeight}
+                    isSafe={modalData.isSafe}
+                    safeLoad={modalData.safeLoad}
+                    currentCwt={modalData.currentCwt}
+                    selectedBoomLen={modalData.selectedBoomLen}
+                    onClose={() => setModalData(null)}
+                />
+            )}
+
             <div className="space-y-6">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator className="text-brand-blue"/> Paramètres de la charge</h2>
@@ -533,37 +660,8 @@ const DeterminePage = ({ allMachines }) => {
                                 <div className="flex gap-2">
                                     <button onClick={() => exportCraneExcel(suggestedCrane)} className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded border border-green-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque Excel</button>
                                     
-                                    <button onClick={() => {
-                                        let cwtToPrint = null;
-                                        if(suggestedCrane.hasCounterweights) {
-                                            let currentMax = 0;
-                                            suggestedCrane.counterweights.forEach(c => {
-                                                // Appel corrigé
-                                                // On cherche la flèche qui donne le max pour ce contrepoids
-                                                suggestedCrane.boomLengths.forEach(b => {
-                                                    const val = CraneCalculator.getCapacity(suggestedCrane, distance, height, b, c, null);
-                                                    if(val > currentMax) { currentMax = val; cwtToPrint = c; }
-                                                });
-                                            });
-                                        }
-                                        // Appel corrigé
-                                        // Pour obtenir la capacité MAX globale affichée, il faut réitérer le calcul max ou le stocker
-                                        // Ici, on refait un calcul rapide pour le PDF
-                                        let finalCap = 0;
-                                        if (suggestedCrane.mode === 'multi_chart') {
-                                             const cwts = suggestedCrane.hasCounterweights ? suggestedCrane.counterweights : [null];
-                                             cwts.forEach(c => {
-                                                suggestedCrane.boomLengths.forEach(b => {
-                                                    const v = CraneCalculator.getCapacity(suggestedCrane, distance, height, b, c, null);
-                                                    if(v > finalCap) finalCap = v;
-                                                });
-                                             });
-                                        } else {
-                                            finalCap = CraneCalculator.getCapacity(suggestedCrane, distance, height, null, null, null);
-                                        }
-
-                                        generateAdequacyPDF(suggestedCrane, (unit==='kg'?mass:mass*1000), distance, height, true, finalCap, cwtToPrint);
-                                    }} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-3 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> PDF Adéquation</button>
+                                    {/* NOUVEAU BOUTON : Ouvre la modale de prédimensionnement */}
+                                    <button onClick={openPredimModal} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-3 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Prédimensionnement</button>
                                 </div>
                             </div>
                         ) : ( <div className="text-center p-4 text-slate-500 italic text-sm">Aucun engin trouvé pour cette configuration (limite {maxUsagePercent}%).</div> )}
@@ -1062,12 +1160,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Calcul d'Adéquation</h3>
                         <div className="space-y-6">
                             
-                            <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
+                            <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach || 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
-                                    <label className="text-lg font-bold text-slate-700">Hauteur Crochet</label>
+                                    <label className="text-lg font-bold text-slate-700">Hauteur de levage</label>
                                     <span className="text-xl font-bold text-[#004e98]">{inputHeight} <span className="text-sm">m</span></span>
                                 </div>
                                 <div className="relative w-full h-8">
@@ -1240,7 +1338,7 @@ const tutorialSlides = [
     { icon: "🏗️", title: "Choix de l'engin", desc: "Sélectionnez votre grue parmi la base de données système ou importez vos propres modèles via Excel." },
     { icon: "📐", title: "Configuration", desc: "Définissez la flèche, le contrepoids (nouveau !) et les paramètres de la charge (Masse, Portée)." },
     { icon: "✅", title: "Vérification", desc: "Visualisez instantanément si le levage est autorisé (Vert) ou interdit (Rouge) grâce aux abaques intégrés." },
-    { icon: "📄", title: "Rapports", desc: "Générez des rapports PDF d'adéquation professionnels prêts à signer en un clic." },
+    { icon: "📄", title: "Prédimensionnement", desc: "Générez des rapports de prédimensionnement PDF prêts à être envoyé pour une vérification." },
     { icon: "🔄", title: "Mises à jour", desc: "L'application vérifie automatiquement les nouvelles versions via GitHub tout en conservant vos données locales." }
 ];
 
