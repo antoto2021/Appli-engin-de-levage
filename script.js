@@ -346,7 +346,7 @@ const CMCLogo = () => (
     <img 
         src="logo.png" 
         alt="Chantiers Modernes Construction" 
-        className="h-18 object-contain cursor-pointer hover:opacity-80 transition-opacity" 
+        className="h-16 object-contain cursor-pointer hover:opacity-80 transition-opacity" 
     />
 );
 
@@ -787,9 +787,9 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [isPredimModalOpen, setIsPredimModalOpen] = useState(false);
     
     // Inputs (Le Besoin)
-    const [inputLoad, setInputLoad] = useState(1000); 
+    const [inputLoad, setInputLoad] = useState(2000); 
     const [inputDist, setInputDist] = useState(3); 
-    const [inputHeight, setInputHeight] = useState(2);
+    const [inputHeight, setInputHeight] = useState(4);
     
     // Configuration (La Solution)
     const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
@@ -799,7 +799,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [isAutoConfig, setIsAutoConfig] = useState(true); 
     const [isUploading, setIsUploading] = useState(false);
 
-    // Initialisation
     useEffect(() => {
         const autoSelected = localStorage.getItem(SELECTED_CRANE_KEY);
         if (autoSelected) {
@@ -827,7 +826,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
     
-    // --- CALCUL DE LA PORTÉE MINIMALE ABSOLUE DE LA MACHINE ---
     const absoluteMinReach = useMemo(() => {
         if (!machine) return 0;
         if (machine.mode === 'multi_chart') {
@@ -847,23 +845,14 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const handleCategoryChange = (newCat) => {
         if (newCat !== category) {
             setCategory(newCat);
-            
-            // Si on clique sur "Engin Télescopique"
             if (newCat === 'telehandler') {
-                setInputLoad(1000);  // Masse par défaut : 2 tonnes (2000 kg)
-                setInputDist(3);     // Portée par défaut : 3 m
-                setInputHeight(2);   // Hauteur par défaut : 4 m
-            } 
-            // Si on clique sur "Grue Mobile" ou "Grue Treillis"
-            else {
-                setInputLoad(5000);  // Masse par défaut : 1 tonne (1000 kg)
-                setInputDist(5);    // Portée par défaut : 10 m
-                setInputHeight(2);   // Hauteur par défaut : 2 m
+                setInputLoad(2000); setInputDist(3); setInputHeight(4);
+            } else {
+                setInputLoad(1000); setInputDist(10); setInputHeight(2);
             }
         }
     };
 
-    // Params initiaux et Clamp par défaut
     useEffect(() => { 
         if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
             if(!isAutoConfig) setSelectedBoomLen(machine.boomLengths[0]); 
@@ -878,47 +867,50 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         
         if (machine) {
             if (inputDist > machine.maxReach + 2) setInputDist(machine.maxReach > 0 ? machine.maxReach : 5);
-            // NOUVEAU : On force le curseur sur le min de l'abaque par défaut
             else if (inputDist < absoluteMinReach) setInputDist(absoluteMinReach);
-
             if (inputHeight > machine.maxHeight + 5) setInputHeight(machine.maxHeight > 0 ? machine.maxHeight : 2);
         }
     }, [machine, absoluteMinReach]);
 
-    // --- LOGIQUE AUTO CONFIG TOTALE (Flèche + CWT + Angle 35°) ---
+    // --- LOGIQUE AUTO CONFIG TOTALE INTÉGRANT LA TOLÉRANCE D'ANGLE ---
     useEffect(() => {
         if (isAutoConfig && machine && machine.mode === 'multi_chart') {
             const sortedCwts = machine.hasCounterweights ? [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b)) : [null];
             const sortedBooms = [...machine.boomLengths].sort((a, b) => parseFloat(a) - parseFloat(b));
 
-            let bestCwt = null; 
-            let bestBoom = null;
-            let found = false;
+            let bestCwt = null; let bestBoom = null; let found = false;
 
+            // PASSE 1 : Priorité absolue -> On cherche avec un angle >= 45°
             for (const cwt of sortedCwts) {
                 for (const boom of sortedBooms) {
                     if (boom <= inputDist) continue; 
-
-                    // NOUVEAU : Calcul Trigonométrique de l'angle (Arccos(Adjacent/Hypoténuse))
-                    const angleRad = Math.acos(inputDist / boom);
-                    const angleDeg = angleRad * (180 / Math.PI);
-                    
-                    // Contrainte stricte : on ignore cette flèche si elle est à moins de 35°
-                    if (angleDeg < 45) continue;
+                    const angleDeg = Math.acos(inputDist / boom) * (180 / Math.PI);
+                    if (angleDeg < 45) continue; // Contrainte de 45° stricte
 
                     const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
                     if (tipH < inputHeight) continue; 
 
                     const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
-                    
-                    if (cap >= inputLoad - 1) { 
-                        bestCwt = cwt; 
-                        bestBoom = boom;
-                        found = true; 
-                        break; 
-                    }
+                    if (cap >= inputLoad - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
                 }
                 if (found) break; 
+            }
+
+            // PASSE 2 : Tolérance -> Si on ne trouve rien (ex: masse trop élevée nécessitant une flèche courte),
+            // on autorise une configuration avec angle < 45° (elle déclenchera l'alerte orange plus bas)
+            if (!found) {
+                for (const cwt of sortedCwts) {
+                    for (const boom of sortedBooms) {
+                        if (boom <= inputDist) continue; 
+                        
+                        const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
+                        if (tipH < inputHeight) continue; 
+
+                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
+                        if (cap >= inputLoad - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
+                    }
+                    if (found) break; 
+                }
             }
 
             if (!found && sortedCwts.length > 0 && sortedBooms.length > 0) { 
@@ -930,8 +922,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [isAutoConfig, inputLoad, inputDist, inputHeight, machine]);
 
-    // --- CAPACITÉ MAX ABSOLUE (Purement liée à la portée, ignore la hauteur) ---
-    // --- CAPACITÉ MAX ABSOLUE (Fidèle aux contraintes de l'algorithme : Angle 45° et Hauteur) ---
+    // --- CAPACITÉ MAX ABSOLUE ---
     const absoluteMaxCapAtDist = useMemo(() => {
         if (!machine) return 0;
         let maxCap = 0;
@@ -939,33 +930,24 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         if (machine.mode === 'multi_chart') {
             const cwts = machine.hasCounterweights ? machine.counterweights : [null];
             
-            // PASSE 1 : On cherche la capacité max en respectant l'angle de 45° ET la hauteur
+            // On cherche le VRAI MAX physique de la grue en ne bloquant PLUS sur l'angle de 45°
+            // pour permettre au curseur Masse d'aller au bout de ce que la grue peut faire.
             cwts.forEach(c => {
                 machine.boomLengths.forEach(b => {
-                    if (b <= inputDist) return; // Impossible géométriquement
+                    if (b <= inputDist) return; 
                     
-                    // Vérification de l'angle (45°)
-                    const angleDeg = Math.acos(inputDist / b) * (180 / Math.PI);
-                    if (angleDeg < 45) return; // On ignore les flèches trop couchées
-                    
-                    // Vérification de la hauteur
                     const tipH = Math.sqrt(Math.pow(b, 2) - Math.pow(inputDist, 2));
-                    if (tipH < inputHeight) return; // On ignore les flèches trop courtes
+                    if (tipH < inputHeight) return; 
                     
                     const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, b, c, selectedTool);
                     if (cap > maxCap) maxCap = cap;
                 });
             });
 
-            // PASSE 2 (Sécurité) : Si aucune flèche ne valide la hauteur, on cherche quand même un max 
-            // en respectant au moins l'angle de 45° pour ne pas bloquer le curseur à 0.
             if (maxCap === 0) {
                  cwts.forEach(c => { 
                      machine.boomLengths.forEach(b => { 
                          if (b <= inputDist) return;
-                         const angleDeg = Math.acos(inputDist / b) * (180 / Math.PI);
-                         if (angleDeg < 45) return;
-                         
                          const cap = CraneCalculator.getCapacity(machine, inputDist, 0, b, c, selectedTool); 
                          if (cap > maxCap) maxCap = cap; 
                      }); 
@@ -975,28 +957,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             let activeZones = [];
             if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) {
                 activeZones = machine.charts[selectedTool].zones;
-            } else if (machine.zones) {
-                activeZones = machine.zones;
-            }
+            } else if (machine.zones) { activeZones = machine.zones; }
             activeZones.forEach(z => {
                 let minX = Infinity, maxX = -Infinity;
-                z.points.forEach(p => {
-                    if (p[0] < minX) minX = p[0];
-                    if (p[0] > maxX) maxX = p[0];
-                });
-                if (inputDist >= minX && inputDist <= maxX) {
-                    if (z.load > maxCap) maxCap = z.load;
-                }
+                z.points.forEach(p => { if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; });
+                if (inputDist >= minX && inputDist <= maxX) { if (z.load > maxCap) maxCap = z.load; }
             });
         }
         return Math.floor(maxCap);
     }, [machine, inputDist, inputHeight, selectedTool]);
 
-    // Calcul Final de la config actuelle (lui prend bien en compte la hauteur !)
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
-    // NOUVEAU : On applique strictement la capacité max trouvée au curseur (finis les sauts étranges)
     const sliderMaxMass = absoluteMaxCapAtDist > 0 ? absoluteMaxCapAtDist : (machine?.maxLoad || 1000);
 
     const tipHeight = useMemo(() => {
@@ -1016,7 +989,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     const currentStepDist = machine?.category === 'telehandler' ? 0.25 : 0.5;
 
-    // --- PORTÉE MINIMALE DE LA CONFIG ACTUELLE ---
     const currentMinReach = useMemo(() => {
         if (machine?.mode === 'multi_chart') {
             const pts = machine.hasCounterweights ? machine?.charts[selectedCwt]?.[selectedBoomLen]?.std : machine?.charts[selectedBoomLen]?.std;
@@ -1025,10 +997,33 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return 0;
     }, [machine, selectedCwt, selectedBoomLen]);
 
-    // --- GESTION DES MESSAGES SIMPLIFIÉS ---
+    // --- EVALUATION DE L'ANGLE ACTUEL POUR LE BANDEAU ---
+    const currentAngleDeg = useMemo(() => {
+        if (machine?.mode === 'multi_chart' && selectedBoomLen > inputDist) {
+            return Math.acos(inputDist / selectedBoomLen) * (180 / Math.PI);
+        }
+        return 90;
+    }, [machine, inputDist, selectedBoomLen]);
+
+    const isAngleWarning = isSafe && machine?.mode === 'multi_chart' && currentAngleDeg < 45;
+
+    // --- GESTION DYNAMIQUE DES MESSAGES ET DES COULEURS ---
     let statusMessage = "Configuration conforme";
     let statusSubMessage = "Le levage peut être effectué en sécurité.";
+    
+    // Thème de base (Vert)
+    let bannerBg = 'bg-[#ecfdf5]'; let bannerBorder = 'bg-[#10b981]';
+    let titleColor = 'text-[#065f46]'; let mainTextColor = 'text-[#047857]'; let subTextColor = 'text-[#065f46]';
+    let mainTitle = 'AUTORISÉ'; let badgeBg = 'bg-green-100 text-green-700 border-green-200'; let badgeText = 'ZONE SÉCURISÉE';
+    let progressColor = 'bg-[#10b981]';
+
     if (!isSafe) {
+        // Thème Interdit (Rouge)
+        bannerBg = 'bg-red-50'; bannerBorder = 'bg-red-500';
+        titleColor = 'text-red-800'; mainTextColor = 'text-red-700'; subTextColor = 'text-red-600';
+        mainTitle = 'INTERDIT'; badgeBg = 'bg-red-100 text-red-700 border-red-200'; progressColor = 'bg-red-500';
+        badgeText = isHeightValid ? 'SURCHARGE' : 'HAUTEUR IMPOSSIBLE';
+        
         if (!isHeightValid) {
             statusMessage = "Hauteur hors abaque";
             if (machine?.mode === 'multi_chart') { statusSubMessage = "La flèche est trop courte. Veuillez réduire la portée ou la hauteur."; } 
@@ -1036,16 +1031,22 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         } else if (safeLoad === 0) {
             statusMessage = "Portée hors abaque";
             if (machine?.mode === 'multi_chart' && inputDist < currentMinReach) {
-                // Si on est en "Auto" et que l'utilisateur force une valeur en dessous du min absolu, on suggère l'absolu. Sinon le min de la flèche.
                 const targetReach = (isAutoConfig && inputDist < absoluteMinReach) ? absoluteMinReach : currentMinReach;
                 statusSubMessage = `Aucune capacité définie à cette portée. Veuillez augmenter la portée à ${targetReach} m.`;
-            } else {
-                statusSubMessage = "Aucune capacité définie à cette portée. Veuillez réduire la portée.";
-            }
+            } else { statusSubMessage = "Aucune capacité définie à cette portée. Veuillez réduire la portée."; }
         } else if (inputLoad > safeLoad) {
             statusMessage = "Capacité dépassée";
             statusSubMessage = `Réduisez la masse (Max autorisé : ${(safeLoad/1000).toFixed(2)} t).`;
         }
+    } else if (isAngleWarning) {
+        // Thème Alerte (Orange)
+        bannerBg = 'bg-amber-50'; bannerBorder = 'bg-amber-500';
+        titleColor = 'text-amber-800'; mainTextColor = 'text-amber-700'; subTextColor = 'text-amber-600';
+        mainTitle = 'AUTORISÉ (RISQUÉ)'; badgeBg = 'bg-amber-100 text-amber-700 border-amber-200'; progressColor = 'bg-amber-500';
+        badgeText = 'ANGLE FAIBLE';
+        
+        statusMessage = "Angle de flèche faible (< 45°)";
+        statusSubMessage = "Le levage est couvert par l'abaque, mais l'angle est trop faible, ce qui rend l'opération risquée.";
     }
 
     const handleExcelUpload = (e) => { 
@@ -1115,17 +1116,15 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         if (machine.mode === 'multi_chart') {
             const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
             tipY = scaleY(isNaN(hGeo) ? 0 : hGeo);
-        } else { 
-            tipY = hookY; 
-        }
+        } else { tipY = hookY; }
 
         const gridStep = isTelehandler ? 1 : (maxX > 60 ? 10 : 5);
         let zonesToDraw = [];
         if (machine.mode === 'zone') zonesToDraw = machine.zones;
         else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) zonesToDraw = machine.charts[selectedTool].zones;
         
-        const statusColor = isSafe ? "#16a34a" : "#dc2626"; 
-        const statusFill = isSafe ? "#22c55e" : "#ef4444";
+        const statusColor = !isSafe ? "#dc2626" : (isAngleWarning ? "#f59e0b" : "#16a34a"); 
+        const statusFill = !isSafe ? "#ef4444" : (isAngleWarning ? "#fbbf24" : "#22c55e");
 
         return (
         <div className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
@@ -1179,8 +1178,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
             </svg>
             
-            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> 
-                {isSafe ? 'ZONE SÉCURISÉE' : (isHeightValid ? 'SURCHARGE' : 'HAUTEUR IMPOSSIBLE')} 
+            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${badgeBg}`}> 
+                {badgeText} 
             </div>
         </div>
         );
@@ -1232,7 +1231,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         </div>
                         {machine && (
                             <div className="flex gap-2 mb-4">
-                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque.xlsx</button>
+                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque .xlsx</button>
                                 <button onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Prédimensionnement</button>
                             </div>
                         )}
@@ -1249,21 +1248,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Calcul d'Adéquation</h3>
                         <div className="space-y-6">
                             
-                            <CustomRange 
-                                label="Masse de la Charge (t)" 
-                                value={inputLoad/1000} 
-                                min={0} 
-                                max={sliderMaxMass/1000} 
-                                step={0.05} 
-                                unit="t" 
-                                maxLabel={`Max engin: ${sliderMaxMass/1000}t`} 
-                                onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} 
-                            />
+                            <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" maxLabel={`Max absolu à cette portée: ${sliderMaxMass/1000}t`} onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach || 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
-                                    <label className="text-lg font-bold text-slate-700">Hauteur de levage</label>
+                                    <label className="text-lg font-bold text-slate-700">Hauteur Crochet</label>
                                     <span className="text-xl font-bold text-[#004e98]">{inputHeight} <span className="text-sm">m</span></span>
                                 </div>
                                 <div className="relative w-full h-8">
@@ -1308,32 +1298,21 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                             )}
                                         </>
                                     )}
-                                    {machine.hasTools && machine.tools && (
-                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                            <label className="text-xs font-bold uppercase text-slate-500 mb-2 block flex items-center gap-2"><Anchor size={12}/> Accessoire / Outil</label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {tool} </button> ))}
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             )}
-
                         </div>
                     </div>
                 </div>
                 
                 <div className="lg:col-span-8 space-y-6">
-                    <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row ${isSafe ? 'bg-[#ecfdf5]' : 'bg-red-50'}`}>
-                        <div className={`absolute left-0 top-0 bottom-0 w-3 ${isSafe ? 'bg-[#10b981]' : 'bg-red-500'}`}></div>
+                    <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row ${bannerBg}`}>
+                        <div className={`absolute left-0 top-0 bottom-0 w-3 ${bannerBorder}`}></div>
                         <div className="p-6 pl-9 flex-1 flex flex-col">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <h2 className={`text-2xl font-bold uppercase mb-1 ${isSafe ? 'text-[#065f46]' : 'text-red-800'}`}>
-                                        {isSafe ? 'AUTORISÉ' : 'INTERDIT'}
-                                    </h2>
-                                    <p className={`font-bold text-sm ${isSafe ? 'text-[#047857]' : 'text-red-700'}`}>{statusMessage}</p>
-                                    <p className={`text-xs font-medium mt-1 pr-4 max-w-sm ${isSafe ? 'text-[#065f46]' : 'text-red-600'}`}>{statusSubMessage}</p>
+                                    <h2 className={`text-2xl font-bold uppercase mb-1 ${titleColor}`}>{mainTitle}</h2>
+                                    <p className={`font-bold text-sm ${mainTextColor}`}>{statusMessage}</p>
+                                    <p className={`text-xs font-medium mt-1 pr-4 max-w-sm ${subTextColor}`}>{statusSubMessage}</p>
                                 </div>
                                 <div className="text-right">
                                     <div className="text-4xl font-bold text-slate-800">{safeLoad/1000} <span className="text-xl font-semibold">t</span></div>
@@ -1342,7 +1321,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             </div>
                             <div className="mt-8">
                                 <div className="flex gap-2 items-end mb-2"><span className="text-sm font-bold text-black">Utilisation {Math.round(usagePercent)}%</span></div>
-                                <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden"><div style={{width: `${Math.min(100, usagePercent)}%`}} className={`h-full rounded-full transition-all duration-500 ease-out ${isSafe ? 'bg-[#10b981]' : 'bg-red-500'}`}></div></div>
+                                <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden"><div style={{width: `${Math.min(100, usagePercent)}%`}} className={`h-full rounded-full transition-all duration-500 ease-out ${progressColor}`}></div></div>
                             </div>
                         </div>
                     </div>
@@ -1350,14 +1329,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     {machine && machine.mode === 'multi_chart' && (
                         <div className="bg-white border-l-4 border-l-[#004e98] border-y border-r border-slate-200 rounded-r-xl p-4 flex items-center justify-between shadow-sm animate-fade-in">
                             <div className="flex items-center gap-3">
-                                <div className="bg-blue-50 p-2 rounded-full text-[#004e98]">
-                                    <Layers size={24} />
-                                </div>
+                                <div className="bg-blue-50 p-2 rounded-full text-[#004e98]"><Layers size={24} /></div>
                                 <div>
                                     <h4 className="text-sm font-bold text-slate-800">Configuration {isAutoConfig ? 'Recommandée' : 'Manuelle'}</h4>
-                                    <p className="text-xs text-slate-500">
-                                        {isAutoConfig ? "L'algorithme a ajusté la grue pour ce levage." : "Vous avez forcé ces paramètres."}
-                                    </p>
+                                    <p className="text-xs text-slate-500">{isAutoConfig ? "L'algorithme a ajusté la grue pour ce levage." : "Vous avez forcé ces paramètres."}</p>
                                 </div>
                             </div>
                             <div className="flex gap-3">
