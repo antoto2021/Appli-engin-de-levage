@@ -1175,7 +1175,16 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Calcul d'Adéquation</h3>
                         <div className="space-y-6">
                             
-                            <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
+                            <CustomRange 
+                                label="Masse de la Charge (t)" 
+                                value={inputLoad/1000} 
+                                min={0} 
+                                max={sliderMaxMass/1000} 
+                                step={0.05} 
+                                unit="t" 
+                                maxLabel={`Max engin: ${sliderMaxMass/1000}t`} 
+                                onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} 
+                            />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach || 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
@@ -1254,7 +1263,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                                 <div className="text-right">
                                     <div className="text-4xl font-bold text-slate-800">{safeLoad/1000} <span className="text-xl font-semibold">t</span></div>
-                                    <div className="text-xs text-slate-500 mt-1">Max Autorisé à {inputDist}m</div>
+                                    <div className="text-xs text-slate-500 mt-1">Max de cette configuration à {inputDist}m</div>
                                 </div>
                             </div>
                             <div className="mt-8">
