@@ -848,14 +848,14 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             
             // Si on clique sur "Engin Télescopique"
             if (newCat === 'telehandler') {
-                setInputLoad(2000);  // Masse par défaut : 2 tonnes (2000 kg)
+                setInputLoad(1000);  // Masse par défaut : 1 tonnes (1000 kg)
                 setInputDist(3);     // Portée par défaut : 3 m
-                setInputHeight(4);   // Hauteur par défaut : 4 m
+                setInputHeight(2);   // Hauteur par défaut : 2 m
             } 
             // Si on clique sur "Grue Mobile" ou "Grue Treillis"
             else {
                 setInputLoad(1000);  // Masse par défaut : 1 tonne (1000 kg)
-                setInputDist(10);    // Portée par défaut : 10 m
+                setInputDist(5);    // Portée par défaut : 5 m
                 setInputHeight(2);   // Hauteur par défaut : 2 m
             }
         }
@@ -1261,7 +1261,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
-                                    <label className="text-lg font-bold text-slate-700">Hauteur Crochet</label>
+                                    <label className="text-lg font-bold text-slate-700">Hauteur Levage</label>
                                     <span className="text-xl font-bold text-[#004e98]">{inputHeight} <span className="text-sm">m</span></span>
                                 </div>
                                 <div className="relative w-full h-8">
