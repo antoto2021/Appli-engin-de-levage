@@ -660,7 +660,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [selectedCwt, setSelectedCwt] = useState(null);
     const [selectedTool, setSelectedTool] = useState(null);
     
-    // NOUVEAU : Un seul bouton "Auto" gère tout ! (Par défaut sur TRUE)
     const [isAutoConfig, setIsAutoConfig] = useState(true); 
     const [isUploading, setIsUploading] = useState(false);
 
@@ -692,6 +691,23 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
     
+    // --- CALCUL DE LA PORTÉE MINIMALE ABSOLUE DE LA MACHINE ---
+    const absoluteMinReach = useMemo(() => {
+        if (!machine) return 0;
+        if (machine.mode === 'multi_chart') {
+            let minR = Infinity;
+            const cwts = machine.hasCounterweights ? machine.counterweights : [null];
+            cwts.forEach(c => {
+                machine.boomLengths.forEach(b => {
+                    const pts = machine.hasCounterweights ? machine.charts[c]?.[b]?.std : machine.charts[b]?.std;
+                    if (pts && pts.length > 0 && pts[0].d < minR) minR = pts[0].d;
+                });
+            });
+            return minR === Infinity ? 0 : minR;
+        }
+        return 0;
+    }, [machine]);
+
     const handleCategoryChange = (newCat) => {
         if (newCat !== category) {
             setCategory(newCat);
@@ -699,7 +715,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     };
 
-    // Params initiaux
+    // Params initiaux et Clamp par défaut
     useEffect(() => { 
         if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
             if(!isAutoConfig) setSelectedBoomLen(machine.boomLengths[0]); 
@@ -714,11 +730,14 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         
         if (machine) {
             if (inputDist > machine.maxReach + 2) setInputDist(machine.maxReach > 0 ? machine.maxReach : 5);
+            // NOUVEAU : On force le curseur sur le min de l'abaque par défaut
+            else if (inputDist < absoluteMinReach) setInputDist(absoluteMinReach);
+
             if (inputHeight > machine.maxHeight + 5) setInputHeight(machine.maxHeight > 0 ? machine.maxHeight : 2);
         }
-    }, [machine]);
+    }, [machine, absoluteMinReach]);
 
-    // --- NOUVELLE LOGIQUE AUTO CONFIG TOTALE (Flèche + CWT) ---
+    // --- LOGIQUE AUTO CONFIG TOTALE (Flèche + CWT + Angle 35°) ---
     useEffect(() => {
         if (isAutoConfig && machine && machine.mode === 'multi_chart') {
             const sortedCwts = machine.hasCounterweights ? [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b)) : [null];
@@ -728,12 +747,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             let bestBoom = null;
             let found = false;
 
-            // On cherche le plus petit CWT et la flèche la plus courte capable de lever la charge
             for (const cwt of sortedCwts) {
                 for (const boom of sortedBooms) {
-                    if (boom <= inputDist) continue; // Vérif. Géométrie : Flèche doit être plus longue que la portée
+                    if (boom <= inputDist) continue; 
+
+                    // NOUVEAU : Calcul Trigonométrique de l'angle (Arccos(Adjacent/Hypoténuse))
+                    const angleRad = Math.acos(inputDist / boom);
+                    const angleDeg = angleRad * (180 / Math.PI);
+                    
+                    // Contrainte stricte : on ignore cette flèche si elle est à moins de 35°
+                    if (angleDeg < 35) continue;
+
                     const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
-                    if (tipH < inputHeight) continue; // Vérif. Géométrie : Doit atteindre la hauteur crochet
+                    if (tipH < inputHeight) continue; 
 
                     const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
                     
@@ -747,7 +773,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 if (found) break; 
             }
 
-            // Si aucune config trouvée (hors abaque/trop lourd), on se met sur la config maximale pour montrer l'erreur
             if (!found && sortedCwts.length > 0 && sortedBooms.length > 0) { 
                 bestCwt = sortedCwts[sortedCwts.length - 1];
                 bestBoom = sortedBooms[sortedBooms.length - 1]; 
@@ -757,7 +782,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [isAutoConfig, inputLoad, inputDist, inputHeight, machine]);
 
-    // --- CAPACITÉ MAX ABSOLUE (Pour brider le curseur de masse) ---
     const absoluteMaxCapAtDist = useMemo(() => {
         if (!machine) return 0;
         let maxCap = 0;
@@ -772,7 +796,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     }
                 });
             });
-            // Si aucune config ne valide la hauteur, on cherche quand même un max pour ne pas bloquer le curseur à 0
             if (maxCap === 0) {
                  cwts.forEach(c => { machine.boomLengths.forEach(b => { const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, b, c, selectedTool); if (cap > maxCap) maxCap = cap; }); });
             }
@@ -782,7 +805,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return maxCap;
     }, [machine, inputDist, inputHeight, selectedTool]);
 
-    // Calcul Final de la configuration ACTUELLE sélectionnée
+    // Calcul Final de la config actuelle
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
@@ -806,6 +829,16 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     const currentStepDist = machine?.category === 'telehandler' ? 0.25 : 0.5;
 
+    // --- PORTÉE MINIMALE DE LA CONFIG ACTUELLE ---
+    const currentMinReach = useMemo(() => {
+        if (machine?.mode === 'multi_chart') {
+            const pts = machine.hasCounterweights ? machine?.charts[selectedCwt]?.[selectedBoomLen]?.std : machine?.charts[selectedBoomLen]?.std;
+            if (pts && pts.length > 0) return pts[0].d;
+        }
+        return 0;
+    }, [machine, selectedCwt, selectedBoomLen]);
+
+    // --- GESTION DES MESSAGES SIMPLIFIÉS ---
     let statusMessage = "Configuration conforme";
     let statusSubMessage = "Le levage peut être effectué en sécurité.";
     if (!isSafe) {
@@ -815,10 +848,16 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             else { statusSubMessage = `La hauteur dépasse la limite absolue de l'engin (${machine?.maxHeight} m).`; }
         } else if (safeLoad === 0) {
             statusMessage = "Portée hors abaque";
-            statusSubMessage = "Aucune capacité définie à cette portée. Veuillez réduire la portée.";
+            if (machine?.mode === 'multi_chart' && inputDist < currentMinReach) {
+                // Si on est en "Auto" et que l'utilisateur force une valeur en dessous du min absolu, on suggère l'absolu. Sinon le min de la flèche.
+                const targetReach = (isAutoConfig && inputDist < absoluteMinReach) ? absoluteMinReach : currentMinReach;
+                statusSubMessage = `Aucune capacité définie à cette portée. Veuillez augmenter la portée à ${targetReach} m.`;
+            } else {
+                statusSubMessage = "Aucune capacité définie à cette portée. Veuillez réduire la portée.";
+            }
         } else if (inputLoad > safeLoad) {
             statusMessage = "Capacité dépassée";
-            statusSubMessage = `Réduisez la masse (Max autorisé : ${(safeLoad/1000).toFixed(2)} t) ou modifiez la configuration.`;
+            statusSubMessage = `Réduisez la masse (Max autorisé : ${(safeLoad/1000).toFixed(2)} t).`;
         }
     }
 
@@ -947,6 +986,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
                 )}
 
+                <line x1={hookX} y1={hookY} x2={hookX} y2={scaleY(0)} stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
                 <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
@@ -1023,7 +1063,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Calcul d'Adéquation</h3>
                         <div className="space-y-6">
                             
-                            {/* --- LES 3 CURSEURS EN HAUT --- */}
                             <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach || 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
@@ -1041,7 +1080,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                             </div>
 
-                            {/* --- SÉPARATEUR & RÉGLAGES MACHINE EN BAS --- */}
                             {machine && (machine.mode === 'multi_chart' || machine.hasTools) && (
                                 <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
                                     <div className="flex justify-between items-center mb-2">
@@ -1114,7 +1152,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         </div>
                     </div>
 
-                    {/* --- NOUVEAU BANDEAU DE RECOMMANDATION DE CONFIGURATION --- */}
                     {machine && machine.mode === 'multi_chart' && (
                         <div className="bg-white border-l-4 border-l-[#004e98] border-y border-r border-slate-200 rounded-r-xl p-4 flex items-center justify-between shadow-sm animate-fade-in">
                             <div className="flex items-center gap-3">
