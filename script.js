@@ -648,22 +648,23 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const localMachinesOnly = useMemo(() => allMachines.filter(m => m.source === 'local'), [allMachines]);
     const [category, setCategory] = useState('telehandler');
     const [selectedMachineId, setSelectedMachineId] = useState(null);
+    const [isPredimModalOpen, setIsPredimModalOpen] = useState(false);
     
-    // Inputs
+    // Inputs (Le Besoin)
     const [inputLoad, setInputLoad] = useState(1000); 
     const [inputDist, setInputDist] = useState(5); 
     const [inputHeight, setInputHeight] = useState(2);
     
-    // Configuration
+    // Configuration (La Solution)
     const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
     const [selectedCwt, setSelectedCwt] = useState(null);
     const [selectedTool, setSelectedTool] = useState(null);
     
-    const [isAutoCwt, setIsAutoCwt] = useState(false); 
+    // NOUVEAU : Un seul bouton "Auto" gère tout ! (Par défaut sur TRUE)
+    const [isAutoConfig, setIsAutoConfig] = useState(true); 
     const [isUploading, setIsUploading] = useState(false);
-    const [isPredimModalOpen, setIsPredimModalOpen] = useState(false);
 
-    // Initialisation & Chargement
+    // Initialisation
     useEffect(() => {
         const autoSelected = localStorage.getItem(SELECTED_CRANE_KEY);
         if (autoSelected) {
@@ -691,67 +692,103 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
     
-    // --- NOUVEAU : Fonction de changement de catégorie avec réinitialisation ---
     const handleCategoryChange = (newCat) => {
         if (newCat !== category) {
             setCategory(newCat);
-            // Réinitialisation des curseurs pour éviter les bugs graphiques hors-limites
-            setInputLoad(1000);
-            setInputDist(5);
-            setInputHeight(2);
+            setInputLoad(1000); setInputDist(5); setInputHeight(2);
         }
     };
 
     // Params initiaux
     useEffect(() => { 
         if (machine?.mode === 'multi_chart' && machine?.boomLengths) { 
-            setSelectedBoomLen(machine.boomLengths[0]); 
+            if(!isAutoConfig) setSelectedBoomLen(machine.boomLengths[0]); 
         } 
         if(machine?.hasCounterweights && machine?.counterweights) { 
-            if (!isAutoCwt) { 
+            if (!isAutoConfig) { 
                 const sorted = [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b));
                 setSelectedCwt(sorted[sorted.length - 1]); 
             }
         } else { setSelectedCwt(null); } 
         if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
         
-        // Sécurité supplémentaire : On bloque les curseurs si la nouvelle machine est plus petite que les valeurs actuelles
         if (machine) {
             if (inputDist > machine.maxReach + 2) setInputDist(machine.maxReach > 0 ? machine.maxReach : 5);
             if (inputHeight > machine.maxHeight + 5) setInputHeight(machine.maxHeight > 0 ? machine.maxHeight : 2);
         }
     }, [machine]);
 
-    // --- LOGIQUE AUTO CWT ---
+    // --- NOUVELLE LOGIQUE AUTO CONFIG TOTALE (Flèche + CWT) ---
     useEffect(() => {
-        if (isAutoCwt && machine && machine.hasCounterweights) {
-            const sortedCwts = [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b));
+        if (isAutoConfig && machine && machine.mode === 'multi_chart') {
+            const sortedCwts = machine.hasCounterweights ? [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b)) : [null];
+            const sortedBooms = [...machine.boomLengths].sort((a, b) => parseFloat(a) - parseFloat(b));
+
             let bestCwt = null; 
+            let bestBoom = null;
             let found = false;
 
+            // On cherche le plus petit CWT et la flèche la plus courte capable de lever la charge
             for (const cwt of sortedCwts) {
-                const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, cwt, selectedTool);
-                
-                if (cap >= inputLoad - 1) { 
-                    bestCwt = cwt; 
-                    found = true; 
-                    break; 
-                }
-            }
-            if (!found && sortedCwts.length > 0) { bestCwt = sortedCwts[sortedCwts.length - 1]; }
-            if (bestCwt && bestCwt !== selectedCwt) { setSelectedCwt(bestCwt); }
-        }
-    }, [isAutoCwt, inputLoad, inputDist, inputHeight, selectedBoomLen, machine]);
+                for (const boom of sortedBooms) {
+                    if (boom <= inputDist) continue; // Vérif. Géométrie : Flèche doit être plus longue que la portée
+                    const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
+                    if (tipH < inputHeight) continue; // Vérif. Géométrie : Doit atteindre la hauteur crochet
 
-    // Calcul Final
+                    const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
+                    
+                    if (cap >= inputLoad - 1) { 
+                        bestCwt = cwt; 
+                        bestBoom = boom;
+                        found = true; 
+                        break; 
+                    }
+                }
+                if (found) break; 
+            }
+
+            // Si aucune config trouvée (hors abaque/trop lourd), on se met sur la config maximale pour montrer l'erreur
+            if (!found && sortedCwts.length > 0 && sortedBooms.length > 0) { 
+                bestCwt = sortedCwts[sortedCwts.length - 1];
+                bestBoom = sortedBooms[sortedBooms.length - 1]; 
+            }
+            if (bestCwt && bestCwt !== selectedCwt) { setSelectedCwt(bestCwt); }
+            if (bestBoom && bestBoom !== selectedBoomLen) { setSelectedBoomLen(bestBoom); }
+        }
+    }, [isAutoConfig, inputLoad, inputDist, inputHeight, machine]);
+
+    // --- CAPACITÉ MAX ABSOLUE (Pour brider le curseur de masse) ---
+    const absoluteMaxCapAtDist = useMemo(() => {
+        if (!machine) return 0;
+        let maxCap = 0;
+        if (machine.mode === 'multi_chart') {
+            const cwts = machine.hasCounterweights ? machine.counterweights : [null];
+            cwts.forEach(c => {
+                machine.boomLengths.forEach(b => {
+                    const tipH = Math.sqrt(Math.pow(b, 2) - Math.pow(inputDist, 2));
+                    if (b > inputDist && tipH >= inputHeight) {
+                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, b, c, selectedTool);
+                        if (cap > maxCap) maxCap = cap;
+                    }
+                });
+            });
+            // Si aucune config ne valide la hauteur, on cherche quand même un max pour ne pas bloquer le curseur à 0
+            if (maxCap === 0) {
+                 cwts.forEach(c => { machine.boomLengths.forEach(b => { const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, b, c, selectedTool); if (cap > maxCap) maxCap = cap; }); });
+            }
+        } else {
+            maxCap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, null, null, selectedTool);
+        }
+        return maxCap;
+    }, [machine, inputDist, inputHeight, selectedTool]);
+
+    // Calcul Final de la configuration ACTUELLE sélectionnée
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
-    // --- NOUVEAU : Slider Max Dynamique (collé à la capacité réelle sans marge) ---
-    const dynamicMaxMass = safeLoad > 0 ? safeLoad : (machine?.maxLoad || 1000);
+    const dynamicMaxMass = absoluteMaxCapAtDist > 0 ? absoluteMaxCapAtDist : (machine?.maxLoad || 1000);
     const sliderMaxMass = Math.max(dynamicMaxMass, inputLoad);
 
-    // Géométrie
     const tipHeight = useMemo(() => {
         if (!machine) return 10;
         let b = 0;
@@ -769,23 +806,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     const currentStepDist = machine?.category === 'telehandler' ? 0.25 : 0.5;
 
-    // --- NOUVEAU : Messages d'erreur détaillés ---
     let statusMessage = "Configuration conforme";
     let statusSubMessage = "Le levage peut être effectué en sécurité.";
     if (!isSafe) {
         if (!isHeightValid) {
             statusMessage = "Hauteur hors abaque";
-            if (machine?.mode === 'multi_chart') {
-                statusSubMessage = "La flèche est trop courte. Veuillez sélectionner une flèche plus longue ou réduire la portée.";
-            } else {
-                statusSubMessage = `La hauteur dépasse la limite absolue de l'engin (${machine?.maxHeight} m).`;
-            }
+            if (machine?.mode === 'multi_chart') { statusSubMessage = "La flèche est trop courte. Veuillez réduire la portée ou la hauteur."; } 
+            else { statusSubMessage = `La hauteur dépasse la limite absolue de l'engin (${machine?.maxHeight} m).`; }
         } else if (safeLoad === 0) {
             statusMessage = "Portée hors abaque";
-            statusSubMessage = "Aucune capacité définie à cette portée. Veuillez réduire la portée ou modifier la configuration.";
+            statusSubMessage = "Aucune capacité définie à cette portée. Veuillez réduire la portée.";
         } else if (inputLoad > safeLoad) {
             statusMessage = "Capacité dépassée";
-            statusSubMessage = `Réduisez la masse (Max autorisé : ${(safeLoad/1000).toFixed(2)} t) ou augmentez la capacité de l'engin (Flèche/CWT).`;
+            statusSubMessage = `Réduisez la masse (Max autorisé : ${(safeLoad/1000).toFixed(2)} t) ou modifiez la configuration.`;
         }
     }
 
@@ -923,6 +956,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isSafe ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}> 
                 {isSafe ? 'ZONE SÉCURISÉE' : (isHeightValid ? 'SURCHARGE' : 'HAUTEUR IMPOSSIBLE')} 
             </div>
+        </div>
+        );
+    };
+
+    return (
+        <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
+            {showDbManager && <DbManagerModal machines={localMachinesOnly} onClose={() => setShowDbManager(false)} onDelete={onDeleteLocal} onReset={onResetLocal} onImport={onImportLocal}/>}
             {isPredimModalOpen && (
                 <PredimModal 
                     machine={machine}
@@ -936,13 +976,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     onClose={() => setIsPredimModalOpen(false)}
                 />
             )}
-        </div>
-        );
-    };
 
-    return (
-        <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
-            {showDbManager && <DbManagerModal machines={localMachinesOnly} onClose={() => setShowDbManager(false)} onDelete={onDeleteLocal} onReset={onResetLocal} onImport={onImportLocal}/>}
             <div className="flex flex-wrap justify-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
                 {[{id: 'telehandler', label: 'Engin Télescopique', icon: Truck}, {id: 'mobile_crane', label: 'Grue Mobile', icon: Move}, {id: 'crawler_crane', label: 'Grue Treillis', icon: Anchor}].map(cat => ( 
                     <button 
@@ -954,17 +988,17 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     </button> 
                 ))}
             </div>
+            
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-4 space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-[#004e98]"></div>
                         <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Truck size={18} className="text-[#004e98]"/> Choix de l'engin</h3><button onClick={() => setShowDbManager(true)} className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 flex items-center gap-1"><Database size={12}/> Gérer Locale</button></div>
                         <div className="mb-4">
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Sélectionner dans la BDD (Globale & Locale)</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Sélectionner dans la BDD</label>
                             <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
                                     {filteredMachines.map(m => ( 
                                         <option key={m.id} value={m.id}> 
-                                            {/* NOUVEAU : Suppression des mentions inutiles dans le sélecteur */}
                                             {m.name} {m.source === 'local' ? ` [Local - ${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : 'Ancien'}]` : ""} 
                                         </option> 
                                     ))}
@@ -972,13 +1006,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         </div>
                         {machine && (
                             <div className="flex gap-2 mb-4">
-                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors">
-                                    <FileText size={14}/> Abaque.xlsx
-                                </button>
-                                {/* NOUVEAU BOUTON PRÉDIMENSIONNEMENT */}
-                                <button onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors">
-                                    <FileText size={14}/> Prédimensionnement
-                                </button>
+                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque .xlsx</button>
+                                <button onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Prédimensionnement</button>
                             </div>
                         )}
                         <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
@@ -991,37 +1020,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     </div>
                     
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Configuration de Levage</h3>
+                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Calcul d'Adéquation</h3>
                         <div className="space-y-6">
-                            {machine && machine.mode === 'multi_chart' && (
-                                <>
-                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                        <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
-                                        <div className="flex flex-wrap gap-2">{machine.boomLengths.map(len => ( <button key={len} onClick={() => setSelectedBoomLen(len)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {len} </button> ))}</div>
-                                    </div>
-                                    {machine.hasCounterweights && (
-                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <label className="text-xs font-bold uppercase text-slate-500 block">Contrepoids</label>
-                                                <button onClick={() => setIsAutoCwt(!isAutoCwt)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoCwt ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>{isAutoCwt ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}</button>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {machine.counterweights.map(cwt => ( <button key={cwt} onClick={() => { setSelectedCwt(cwt); setIsAutoCwt(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoCwt && selectedCwt === cwt ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {cwt} </button> ))}
-                                            </div>
-                                            {isAutoCwt && <p className="text-[10px] text-green-600 mt-2 italic flex items-center gap-1"><CheckCircle size={10}/> Sélection automatique activée</p>}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                            {machine && machine.hasTools && machine.tools && (
-                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block flex items-center gap-2"><Anchor size={12}/> Accessoire / Outil</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {tool} </button> ))}
-                                    </div>
-                                </div>
-                            )}
-
+                            
+                            {/* --- LES 3 CURSEURS EN HAUT --- */}
                             <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach || 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
@@ -1039,9 +1041,55 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                             </div>
 
+                            {/* --- SÉPARATEUR & RÉGLAGES MACHINE EN BAS --- */}
+                            {machine && (machine.mode === 'multi_chart' || machine.hasTools) && (
+                                <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
+                                        {machine.mode === 'multi_chart' && (
+                                            <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
+                                                {isAutoConfig ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {machine.mode === 'multi_chart' && (
+                                        <>
+                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {machine.boomLengths.map(len => ( 
+                                                        <button key={len} onClick={() => { setSelectedBoomLen(len); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedBoomLen === len ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {len} </button> 
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {machine.hasCounterweights && (
+                                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids (t)</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {machine.counterweights.map(cwt => ( 
+                                                            <button key={cwt} onClick={() => { setSelectedCwt(cwt); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedCwt === cwt ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {cwt} </button> 
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                    {machine.hasTools && machine.tools && (
+                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                            <label className="text-xs font-bold uppercase text-slate-500 mb-2 block flex items-center gap-2"><Anchor size={12}/> Accessoire / Outil</label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {tool} </button> ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                         </div>
                     </div>
                 </div>
+                
                 <div className="lg:col-span-8 space-y-6">
                     <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row ${isSafe ? 'bg-[#ecfdf5]' : 'bg-red-50'}`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-3 ${isSafe ? 'bg-[#10b981]' : 'bg-red-500'}`}></div>
@@ -1051,16 +1099,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     <h2 className={`text-2xl font-bold uppercase mb-1 ${isSafe ? 'text-[#065f46]' : 'text-red-800'}`}>
                                         {isSafe ? 'AUTORISÉ' : 'INTERDIT'}
                                     </h2>
-                                    {/* NOUVEAU : Affichage de la cause principale */}
                                     <p className={`font-bold text-sm ${isSafe ? 'text-[#047857]' : 'text-red-700'}`}>{statusMessage}</p>
-                                    {/* NOUVEAU : Affichage de l'action correctrice à réaliser */}
                                     <p className={`text-xs font-medium mt-1 pr-4 max-w-sm ${isSafe ? 'text-[#065f46]' : 'text-red-600'}`}>{statusSubMessage}</p>
                                 </div>
                                 <div className="text-right">
                                     <div className="text-4xl font-bold text-slate-800">{safeLoad/1000} <span className="text-xl font-semibold">t</span></div>
                                     <div className="text-xs text-slate-500 mt-1">Max Autorisé à {inputDist}m</div>
-                                    {machine && machine.hasCounterweights && <div className="text-xs text-brand-red font-bold mt-1">CWT: {selectedCwt}</div>}
-                                    {machine && machine.hasTools && <div className="text-xs text-[#004e98] font-bold mt-1">Outil: {selectedTool}</div>}
                                 </div>
                             </div>
                             <div className="mt-8">
@@ -1069,12 +1113,43 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             </div>
                         </div>
                     </div>
+
+                    {/* --- NOUVEAU BANDEAU DE RECOMMANDATION DE CONFIGURATION --- */}
+                    {machine && machine.mode === 'multi_chart' && (
+                        <div className="bg-white border-l-4 border-l-[#004e98] border-y border-r border-slate-200 rounded-r-xl p-4 flex items-center justify-between shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-50 p-2 rounded-full text-[#004e98]">
+                                    <Layers size={24} />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-800">Configuration {isAutoConfig ? 'Recommandée' : 'Manuelle'}</h4>
+                                    <p className="text-xs text-slate-500">
+                                        {isAutoConfig ? "L'algorithme a ajusté la grue pour ce levage." : "Vous avez forcé ces paramètres."}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3">
+                                <div className="text-center bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">
+                                    <div className="text-[10px] uppercase font-bold text-slate-400">Flèche</div>
+                                    <div className="font-bold text-[#004e98]">{selectedBoomLen} m</div>
+                                </div>
+                                {machine.hasCounterweights && (
+                                    <div className="text-center bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">
+                                        <div className="text-[10px] uppercase font-bold text-slate-400">Contrepoids</div>
+                                        <div className="font-bold text-[#004e98]">{selectedCwt} t</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     <GraphChart2D />
                 </div>
             </div>
         </div>
     );
 };
+
 const App = () => {
     const [page, setPage] = useState('home');
     const [localMachines, setLocalMachines] = useState([]); const [externalMachines, setExternalMachines] = useState([]);
