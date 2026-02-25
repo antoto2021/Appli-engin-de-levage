@@ -747,11 +747,9 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
-    const sliderMax = Math.max(
-        safeLoad > 0 ? Math.ceil(safeLoad * 1.05) : 5000, 
-        inputLoad, 
-        1000
-    );
+    // --- NOUVEAU : Slider Max Dynamique (collé à la capacité réelle sans marge) ---
+    const dynamicMaxMass = safeLoad > 0 ? safeLoad : (machine?.maxLoad || 1000);
+    const sliderMaxMass = Math.max(dynamicMaxMass, inputLoad);
 
     // Géométrie
     const tipHeight = useMemo(() => {
@@ -768,6 +766,28 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const isLoadSafe = inputLoad <= safeLoad && safeLoad > 0;
     const isSafe = isLoadSafe && isHeightValid;
     const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
+
+    const currentStepDist = machine?.category === 'telehandler' ? 0.25 : 0.5;
+
+    // --- NOUVEAU : Messages d'erreur détaillés ---
+    let statusMessage = "Configuration conforme";
+    let statusSubMessage = "Le levage peut être effectué en sécurité.";
+    if (!isSafe) {
+        if (!isHeightValid) {
+            statusMessage = "Hauteur hors abaque";
+            if (machine?.mode === 'multi_chart') {
+                statusSubMessage = "La flèche est trop courte. Veuillez sélectionner une flèche plus longue ou réduire la portée.";
+            } else {
+                statusSubMessage = `La hauteur dépasse la limite absolue de l'engin (${machine?.maxHeight} m).`;
+            }
+        } else if (safeLoad === 0) {
+            statusMessage = "Portée hors abaque";
+            statusSubMessage = "Aucune capacité définie à cette portée. Veuillez réduire la portée ou modifier la configuration.";
+        } else if (inputLoad > safeLoad) {
+            statusMessage = "Capacité dépassée";
+            statusSubMessage = `Réduisez la masse (Max autorisé : ${(safeLoad/1000).toFixed(2)} t) ou augmentez la capacité de l'engin (Flèche/CWT).`;
+        }
+    }
 
     const handleExcelUpload = (e) => { 
         const file = e.target.files[0]; if (!file) return; setIsUploading(true); const reader = new FileReader();
@@ -1002,8 +1022,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                             )}
 
-                            <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMax/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
-                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach + 2} step={machine?.category === 'telehandler' ? 0.25 : 0.5} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
+                            <CustomRange label="Masse (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
+                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach || 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
@@ -1027,7 +1047,15 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <div className={`absolute left-0 top-0 bottom-0 w-3 ${isSafe ? 'bg-[#10b981]' : 'bg-red-500'}`}></div>
                         <div className="p-6 pl-9 flex-1 flex flex-col">
                             <div className="flex justify-between items-start">
-                                <div><h2 className={`text-2xl font-bold uppercase mb-1 ${isSafe ? 'text-[#065f46]' : 'text-red-800'}`}>{isSafe ? 'AUTORISÉ' : (isHeightValid ? 'INTERDIT' : 'HAUTEUR !')}</h2><p className="text-slate-600 font-medium">{!isHeightValid ? 'Hauteur impossible avec cette flèche' : (isSafe ? 'Configuration conforme' : 'Capacité dépassée ou hors de portée')}</p></div>
+                                <div>
+                                    <h2 className={`text-2xl font-bold uppercase mb-1 ${isSafe ? 'text-[#065f46]' : 'text-red-800'}`}>
+                                        {isSafe ? 'AUTORISÉ' : 'INTERDIT'}
+                                    </h2>
+                                    {/* NOUVEAU : Affichage de la cause principale */}
+                                    <p className={`font-bold text-sm ${isSafe ? 'text-[#047857]' : 'text-red-700'}`}>{statusMessage}</p>
+                                    {/* NOUVEAU : Affichage de l'action correctrice à réaliser */}
+                                    <p className={`text-xs font-medium mt-1 pr-4 max-w-sm ${isSafe ? 'text-[#065f46]' : 'text-red-600'}`}>{statusSubMessage}</p>
+                                </div>
                                 <div className="text-right">
                                     <div className="text-4xl font-bold text-slate-800">{safeLoad/1000} <span className="text-xl font-semibold">t</span></div>
                                     <div className="text-xs text-slate-500 mt-1">Max Autorisé à {inputDist}m</div>
