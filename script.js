@@ -756,7 +756,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     const angleDeg = angleRad * (180 / Math.PI);
                     
                     // Contrainte stricte : on ignore cette flèche si elle est à moins de 35°
-                    if (angleDeg < 35) continue;
+                    if (angleDeg < 45) continue;
 
                     const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
                     if (tipH < inputHeight) continue; 
@@ -986,7 +986,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
                 )}
 
-                <line x1={hookX} y1={hookY} x2={hookX} y2={scaleY(0)} stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
                 <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
