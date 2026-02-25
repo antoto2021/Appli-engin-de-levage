@@ -204,7 +204,7 @@ const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, s
     
     // --- EN-TÊTE ---
     // Ajout du vrai logo
-    doc.addImage('logo.png', 'PNG', 14, 10, 55, 16); 
+    doc.addImage('logo.png', 'PNG', 14, 10, 75, 22);
     
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(16);
@@ -308,13 +308,13 @@ const CMCLogo = () => (
     <img 
         src="logo.png" 
         alt="Chantiers Modernes Construction" 
-        className="h-10 object-contain cursor-pointer hover:opacity-80 transition-opacity" 
+        className="h-14 object-contain cursor-pointer hover:opacity-80 transition-opacity" 
     />
 );
 
 const CustomRange = ({ label, value, min, max, step, onChange, unit = "", maxLabel = "" }) => {
     const range = max - min;
-    const percentage = range > 0 ? ((value - min) / range) * 100 : 0;
+    const percentage = range > 0 ? Math.min(100, Math.max(0, ((value - min) / range) * 100)) : 0;
     return (
         <div className="w-full">
             <div className="flex justify-between items-end mb-2">
@@ -880,35 +880,50 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [isAutoConfig, inputLoad, inputDist, inputHeight, machine]);
 
+    // --- CAPACITÉ MAX ABSOLUE (Purement liée à la portée, ignore la hauteur) ---
     const absoluteMaxCapAtDist = useMemo(() => {
         if (!machine) return 0;
         let maxCap = 0;
+        
         if (machine.mode === 'multi_chart') {
             const cwts = machine.hasCounterweights ? machine.counterweights : [null];
             cwts.forEach(c => {
                 machine.boomLengths.forEach(b => {
-                    const tipH = Math.sqrt(Math.pow(b, 2) - Math.pow(inputDist, 2));
-                    if (b > inputDist && tipH >= inputHeight) {
-                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, b, c, selectedTool);
-                        if (cap > maxCap) maxCap = cap;
-                    }
+                    // En forçant la hauteur à 0, le moteur lit l'abaque brut sans bloquer sur la géométrie
+                    const cap = CraneCalculator.getCapacity(machine, inputDist, 0, b, c, selectedTool);
+                    if (cap > maxCap) maxCap = cap;
                 });
             });
-            if (maxCap === 0) {
-                 cwts.forEach(c => { machine.boomLengths.forEach(b => { const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, b, c, selectedTool); if (cap > maxCap) maxCap = cap; }); });
-            }
         } else {
-            maxCap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, null, null, selectedTool);
+            // Pour les Manitous, on vérifie si la portée "coupe" une zone de couleur, peu importe la hauteur
+            let activeZones = [];
+            if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) {
+                activeZones = machine.charts[selectedTool].zones;
+            } else if (machine.zones) {
+                activeZones = machine.zones;
+            }
+            
+            activeZones.forEach(z => {
+                let minX = Infinity, maxX = -Infinity;
+                z.points.forEach(p => {
+                    if (p[0] < minX) minX = p[0];
+                    if (p[0] > maxX) maxX = p[0];
+                });
+                // Si la portée demandée est dans la largeur de la zone, c'est une capacité possible
+                if (inputDist >= minX && inputDist <= maxX) {
+                    if (z.load > maxCap) maxCap = z.load;
+                }
+            });
         }
-        return maxCap;
-    }, [machine, inputDist, inputHeight, selectedTool]);
+        return Math.floor(maxCap);
+    }, [machine, inputDist, selectedTool]);
 
-    // Calcul Final de la config actuelle
+    // Calcul Final de la config actuelle (lui prend bien en compte la hauteur !)
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
-    const dynamicMaxMass = absoluteMaxCapAtDist > 0 ? absoluteMaxCapAtDist : (machine?.maxLoad || 1000);
-    const sliderMaxMass = Math.max(dynamicMaxMass, inputLoad);
+    // NOUVEAU : On applique strictement la capacité max trouvée au curseur (finis les sauts étranges)
+    const sliderMaxMass = absoluteMaxCapAtDist > 0 ? absoluteMaxCapAtDist : (machine?.maxLoad || 1000);
 
     const tipHeight = useMemo(() => {
         if (!machine) return 10;
@@ -1143,7 +1158,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         </div>
                         {machine && (
                             <div className="flex gap-2 mb-4">
-                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque .xlsx</button>
+                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque.xlsx</button>
                                 <button onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Prédimensionnement</button>
                             </div>
                         )}
@@ -1334,9 +1349,9 @@ let hasPerformedCheck = false;
 
 // DONNÉES DU TUTORIEL
 const tutorialSlides = [
-    { icon: "👋", title: "Bienvenue !", desc: "Levage Sécurisé : Votre assistant digital pour valider vos adéquations de levage sur chantier." },
+    { icon: "👋", title: "Bienvenue !", desc: "Levage Sécurisé : Votre assistant digital pour prédimensionner vos levages sur chantier." },
     { icon: "🏗️", title: "Choix de l'engin", desc: "Sélectionnez votre grue parmi la base de données système ou importez vos propres modèles via Excel." },
-    { icon: "📐", title: "Configuration", desc: "Définissez la flèche, le contrepoids (nouveau !) et les paramètres de la charge (Masse, Portée)." },
+    { icon: "📐", title: "Configuration", desc: "Définissez les paramètres du levage (Masse, Portée). L'appli vous donneras automatiquement la flèche et le contrepoids adapté" },
     { icon: "✅", title: "Vérification", desc: "Visualisez instantanément si le levage est autorisé (Vert) ou interdit (Rouge) grâce aux abaques intégrés." },
     { icon: "📄", title: "Prédimensionnement", desc: "Générez des rapports de prédimensionnement PDF prêts à être envoyé pour une vérification." },
     { icon: "🔄", title: "Mises à jour", desc: "L'application vérifie automatiquement les nouvelles versions via GitHub tout en conservant vos données locales." }
