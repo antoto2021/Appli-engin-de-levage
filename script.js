@@ -204,7 +204,7 @@ const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, s
     
     // --- EN-TÊTE ---
     // Ajout du vrai logo
-    doc.addImage('logo.png', 'PNG', 14, 10, 105, 32);
+    doc.addImage('logo.png', 'PNG', 14, 10, 75, 22);
     
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(16);
@@ -787,9 +787,9 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [isPredimModalOpen, setIsPredimModalOpen] = useState(false);
     
     // Inputs (Le Besoin)
-    const [inputLoad, setInputLoad] = useState(2000); 
+    const [inputLoad, setInputLoad] = useState(1000); 
     const [inputDist, setInputDist] = useState(3); 
-    const [inputHeight, setInputHeight] = useState(4);
+    const [inputHeight, setInputHeight] = useState(2);
     
     // Configuration (La Solution)
     const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
@@ -845,10 +845,18 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const handleCategoryChange = (newCat) => {
         if (newCat !== category) {
             setCategory(newCat);
+            
+            // Si on clique sur "Engin Télescopique"
             if (newCat === 'telehandler') {
-                setInputLoad(2000); setInputDist(3); setInputHeight(4);
-            } else {
-                setInputLoad(1000); setInputDist(10); setInputHeight(2);
+                setInputLoad(2000);  // Masse par défaut : 2 tonnes (2000 kg)
+                setInputDist(3);     // Portée par défaut : 3 m
+                setInputHeight(4);   // Hauteur par défaut : 4 m
+            } 
+            // Si on clique sur "Grue Mobile" ou "Grue Treillis"
+            else {
+                setInputLoad(1000);  // Masse par défaut : 1 tonne (1000 kg)
+                setInputDist(10);    // Portée par défaut : 10 m
+                setInputHeight(2);   // Hauteur par défaut : 2 m
             }
         }
     };
