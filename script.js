@@ -881,42 +881,66 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     }, [isAutoConfig, inputLoad, inputDist, inputHeight, machine]);
 
     // --- CAPACITÉ MAX ABSOLUE (Purement liée à la portée, ignore la hauteur) ---
+    // --- CAPACITÉ MAX ABSOLUE (Fidèle aux contraintes de l'algorithme : Angle 45° et Hauteur) ---
     const absoluteMaxCapAtDist = useMemo(() => {
         if (!machine) return 0;
         let maxCap = 0;
         
         if (machine.mode === 'multi_chart') {
             const cwts = machine.hasCounterweights ? machine.counterweights : [null];
+            
+            // PASSE 1 : On cherche la capacité max en respectant l'angle de 45° ET la hauteur
             cwts.forEach(c => {
                 machine.boomLengths.forEach(b => {
-                    // En forçant la hauteur à 0, le moteur lit l'abaque brut sans bloquer sur la géométrie
-                    const cap = CraneCalculator.getCapacity(machine, inputDist, 0, b, c, selectedTool);
+                    if (b <= inputDist) return; // Impossible géométriquement
+                    
+                    // Vérification de l'angle (45°)
+                    const angleDeg = Math.acos(inputDist / b) * (180 / Math.PI);
+                    if (angleDeg < 45) return; // On ignore les flèches trop couchées
+                    
+                    // Vérification de la hauteur
+                    const tipH = Math.sqrt(Math.pow(b, 2) - Math.pow(inputDist, 2));
+                    if (tipH < inputHeight) return; // On ignore les flèches trop courtes
+                    
+                    const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, b, c, selectedTool);
                     if (cap > maxCap) maxCap = cap;
                 });
             });
+
+            // PASSE 2 (Sécurité) : Si aucune flèche ne valide la hauteur, on cherche quand même un max 
+            // en respectant au moins l'angle de 45° pour ne pas bloquer le curseur à 0.
+            if (maxCap === 0) {
+                 cwts.forEach(c => { 
+                     machine.boomLengths.forEach(b => { 
+                         if (b <= inputDist) return;
+                         const angleDeg = Math.acos(inputDist / b) * (180 / Math.PI);
+                         if (angleDeg < 45) return;
+                         
+                         const cap = CraneCalculator.getCapacity(machine, inputDist, 0, b, c, selectedTool); 
+                         if (cap > maxCap) maxCap = cap; 
+                     }); 
+                 });
+            }
         } else {
-            // Pour les Manitous, on vérifie si la portée "coupe" une zone de couleur, peu importe la hauteur
             let activeZones = [];
             if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) {
                 activeZones = machine.charts[selectedTool].zones;
             } else if (machine.zones) {
                 activeZones = machine.zones;
             }
-            
             activeZones.forEach(z => {
                 let minX = Infinity, maxX = -Infinity;
                 z.points.forEach(p => {
                     if (p[0] < minX) minX = p[0];
                     if (p[0] > maxX) maxX = p[0];
                 });
-                // Si la portée demandée est dans la largeur de la zone, c'est une capacité possible
                 if (inputDist >= minX && inputDist <= maxX) {
                     if (z.load > maxCap) maxCap = z.load;
                 }
             });
         }
         return Math.floor(maxCap);
-    }, [machine, inputDist, selectedTool]);
+    }, [machine, inputDist, inputHeight, selectedTool]);
 
     // Calcul Final de la config actuelle (lui prend bien en compte la hauteur !)
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
