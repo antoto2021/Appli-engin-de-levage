@@ -1004,7 +1004,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
-    const sliderMaxMass = absoluteMaxCapAtDist > 0 ? absoluteMaxCapAtDist : (machine?.maxLoad || 1000);
+    // Correction de la limite pour éviter les sauts brusques
+    const sliderMaxMass = absoluteMaxCapAtDist > 0 ? absoluteMaxCapAtDist : Math.max(inputLoad, 1000);
 
     const tipHeight = useMemo(() => {
         if (!machine) return 10;
@@ -1104,8 +1105,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                      for (let r = 1; r < data.length; r++) {
                          const row = data[r]; const radius = parseFloat(row[0]);
                          if (!isNaN(radius)) {
-                             if (radius > maxReachFound) maxReachFound = radius;
-                             for (let c = 1; c < row.length; c++) { const loadVal = parseFloat(row[c]); const boomLen = colToBoom[c]; if (boomLen && !isNaN(loadVal)) { sheetCharts[boomLen].std.push({ d: radius, l: loadVal }); if (loadVal > maxLoadFound) maxLoadFound = loadVal; } }
+                             let hasValidLoad = false;
+                             // NOUVEAU : On vérifie qu'il y a au moins une VRAIE valeur sur cette ligne
+                             for (let c = 1; c < row.length; c++) { 
+                                 const loadVal = parseFloat(row[c]); 
+                                 const boomLen = colToBoom[c]; 
+                                 if (boomLen && !isNaN(loadVal)) { 
+                                     sheetCharts[boomLen].std.push({ d: radius, l: loadVal }); 
+                                     if (loadVal > maxLoadFound) maxLoadFound = loadVal; 
+                                     hasValidLoad = true;
+                                 } 
+                             }
+                             // La portée max n'augmente que si la grue peut lever quelque chose à cette distance
+                             if (hasValidLoad && radius > maxReachFound) maxReachFound = radius;
                          }
                      }
                      return sheetCharts;
@@ -1282,7 +1294,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         </div>
                         {machine && (
                             <div className="flex gap-2 mb-4">
-                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque .xlsx</button>
+                                <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque.xlsx</button>
                                 <button onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Prédimensionnement</button>
                             </div>
                         )}
@@ -1300,7 +1312,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <div className="space-y-6">
                             
                             <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" maxLabel={`Max absolu à cette portée: ${sliderMaxMass/1000}t`} onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
-                            <CustomRange label="Portée (m)" value={inputDist} min={absoluteMinReach} max={machine?.maxReach || 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
+                            <CustomRange label="Portée (m)" value={inputDist} min={absoluteMinReach} max={machine?.maxReach > 0 ? machine.maxReach : 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
