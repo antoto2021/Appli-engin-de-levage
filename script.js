@@ -206,7 +206,7 @@ const exportCraneExcel = (machine) => {
     XLSX.writeFile(wb, `${safeName}_abaque_${formatDateTime()}.xlsx`);
 };
 
-const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, chantierName) => {
+const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, currentMoufle, chantierName) => {
     if (!machine) return;
     const doc = new jsPDF('landscape'); // Format Paysage pour coller à la maquette
     
@@ -245,7 +245,10 @@ const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, s
     doc.text(`Portée max : ${machine.maxReach} m`, 140, yRight); yRight += 6;
     doc.text(`Hauteur max : ${machine.maxHeight} m`, 140, yRight); yRight += 6;
     if (machine.hasCounterweights && currentCwt) {
-        doc.text(`Masse contre-poids : ${currentCwt} t`, 140, yRight);
+        doc.text(`Masse contre-poids : ${currentCwt} t`, 140, yRight); yRight += 6;
+    }
+    if (currentMoufle !== null && currentMoufle !== undefined) {
+        doc.text(`Masse du moufle : ${currentMoufle} t`, 140, yRight); yRight += 6;
     }
 
     // --- SECTION RÉSULTAT (Bas de page gauche) ---
@@ -646,7 +649,8 @@ const DeterminePage = ({ allMachines }) => {
             isSafe: true, 
             safeLoad: finalCap,
             currentCwt: bestCwt,
-            selectedBoomLen: bestBoom
+            selectedBoomLen: bestBoom,
+            currentMoufle: currentMoufle
         });
     };
 
@@ -664,6 +668,7 @@ const DeterminePage = ({ allMachines }) => {
                     safeLoad={modalData.safeLoad}
                     currentCwt={modalData.currentCwt}
                     selectedBoomLen={modalData.selectedBoomLen}
+                    currentMoufle={modalData.currentMoufle}
                     onClose={() => setModalData(null)}
                 />
             )}
@@ -700,7 +705,6 @@ const DeterminePage = ({ allMachines }) => {
                         {suggestedCrane ? (
                             <div className="bg-white border border-green-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
                                 <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] px-2 py-1 font-bold rounded-bl-lg">RECOMMANDÉ</div>
-                                <div className="absolute bottom-2 right-2 text-[10px] text-slate-400 px-2 py-1 bg-slate-100 rounded">Source: {suggestedCrane.source === 'external' ? 'BDD Externe' : (suggestedCrane.source === 'system' ? 'Système' : 'Locale')}</div>
                                 <h4 className="text-lg font-bold text-slate-800 mb-1">{suggestedCrane.name}</h4>
                                 <p className="text-sm text-slate-500 mb-4">{suggestedCrane.category} • Max {suggestedCrane.maxLoad}kg</p>
                                 <div className="flex gap-2">
@@ -718,12 +722,12 @@ const DeterminePage = ({ allMachines }) => {
     );
 };
 
-const PredimModal = ({ machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, onClose }) => {
+const PredimModal = ({ machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, currentMoufle, onClose }) => {
     const [chantierName, setChantierName] = useState("");
 
     const handleDownload = () => {
         if (!chantierName.trim()) { alert("Veuillez indiquer un nom de chantier."); return; }
-        generatePredimPDF(machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, chantierName);
+        generatePredimPDF(machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, currentMoufle, chantierName);
     };
 
     const handleSendMail = () => {
@@ -1261,6 +1265,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     safeLoad={safeLoad}
                     currentCwt={selectedCwt}
                     selectedBoomLen={selectedBoomLen}
+                    currentMoufle={currentMoufle}
                     onClose={() => setIsPredimModalOpen(false)}
                 />
             )}
