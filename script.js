@@ -54,6 +54,14 @@ const isPointInPolygon = (x, y, polygon) => {
     return inside;
 };
 
+const getMoufleForLoad = (machine, loadKg) => {
+    if (!machine || !machine.moufles || machine.moufles.length === 0) return null;
+    const loadT = loadKg / 1000;
+    // On cherche le premier moufle capable de lever la charge (le tableau sera trié)
+    const found = machine.moufles.find(m => m.maxLoad >= loadT);
+    return found ? found.mass : machine.moufles[machine.moufles.length - 1].mass;
+};
+
 // --- MOTEUR DE CALCUL (Remplacement de calculateMachineCapacity) ---
 const CraneCalculator = {
     getCapacity: (machine, dist, height, boom, cwt, tool) => {
@@ -826,10 +834,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     const machine = useMemo(() => allMachines.find(m => m.id === selectedMachineId) || filteredMachines[0], [selectedMachineId, allMachines, filteredMachines]);
     
+    // --- CALCUL DE LA PORTÉE MINIMALE ABSOLUE DE LA MACHINE ---
     const absoluteMinReach = useMemo(() => {
         if (!machine) return 0;
+        let minR = Infinity;
+        
         if (machine.mode === 'multi_chart') {
-            let minR = Infinity;
             const cwts = machine.hasCounterweights ? machine.counterweights : [null];
             cwts.forEach(c => {
                 machine.boomLengths.forEach(b => {
@@ -837,9 +847,20 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     if (pts && pts.length > 0 && pts[0].d < minR) minR = pts[0].d;
                 });
             });
-            return minR === Infinity ? 0 : minR;
+        } else {
+            let activeZones = [];
+            if (machine.mode === 'zone_multi_tool' && machine.tools && machine.charts[machine.tools[0]]) {
+                activeZones = machine.charts[machine.tools[0]].zones;
+            } else if (machine.zones) {
+                activeZones = machine.zones;
+            }
+            activeZones.forEach(z => {
+                z.points.forEach(p => {
+                    if (p[0] < minR) minR = p[0];
+                });
+            });
         }
-        return 0;
+        return minR === Infinity ? 0 : minR;
     }, [machine]);
 
     const handleCategoryChange = (newCat) => {
@@ -874,8 +895,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
         
         if (machine) {
-            if (inputDist > machine.maxReach + 2) setInputDist(machine.maxReach > 0 ? machine.maxReach : 5);
-            else if (inputDist < absoluteMinReach) setInputDist(absoluteMinReach);
+            // NOUVEAU : On repousse le curseur si la nouvelle portée min est plus grande que la valeur actuelle
+            if (inputDist > machine.maxReach) {
+                setInputDist(machine.maxReach > 0 ? machine.maxReach : 5);
+            } else if (inputDist < absoluteMinReach) {
+                setInputDist(absoluteMinReach);
+            }
+
             if (inputHeight > machine.maxHeight + 5) setInputHeight(machine.maxHeight > 0 ? machine.maxHeight : 2);
         }
     }, [machine, absoluteMinReach]);
@@ -1014,6 +1040,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     }, [machine, inputDist, selectedBoomLen]);
 
     const isAngleWarning = isSafe && machine?.mode === 'multi_chart' && currentAngleDeg < 45;
+    const currentMoufle = getMoufleForLoad(machine, inputLoad);
 
     // --- GESTION DYNAMIQUE DES MESSAGES ET DES COULEURS ---
     let statusMessage = "Configuration conforme";
@@ -1083,10 +1110,26 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                      }
                      return sheetCharts;
                 };
-                if (useCwtMode) { wb.SheetNames.forEach(sheetName => { const cwtData = parseSheet(sheetName); if(cwtData) { counterweights.push(sheetName); charts[sheetName] = cwtData; } }); } else { charts = parseSheet(wb.SheetNames[0]); }
+                if (useCwtMode) { wb.SheetNames.forEach(sheetName => { const cwtData = parseSheet(sheetName); if(cwtData && sheetName.toLowerCase() !== 'moufles') { counterweights.push(sheetName); charts[sheetName] = cwtData; } }); } else { charts = parseSheet(wb.SheetNames[0]); }
                 const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
                 if (boomLengths.length === 0) throw new Error("Aucune colonne de flèche valide trouvée.");
-                const newMachine = { id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, boomLengths: boomLengths, charts: charts, createdAt: new Date().toISOString(), isCustom: true };
+                
+                // --- NOUVEAU : Lecture de l'onglet Moufles ---
+                let moufles = null;
+                const mouflesSheetName = wb.SheetNames.find(n => n.toLowerCase() === 'moufles');
+                if (mouflesSheetName) {
+                    const wsMoufles = wb.Sheets[mouflesSheetName];
+                    const dataMoufles = XLSX.utils.sheet_to_json(wsMoufles, { header: 1 });
+                    moufles = [];
+                    for (let r = 1; r < dataMoufles.length; r++) { // Saute l'en-tête
+                        const maxL = parseFloat(dataMoufles[r][0]);
+                        const massM = parseFloat(dataMoufles[r][1]);
+                        if (!isNaN(maxL) && !isNaN(massM)) { moufles.push({ maxLoad: maxL, mass: massM }); }
+                    }
+                    moufles.sort((a, b) => a.maxLoad - b.maxLoad); // Tri croissant
+                }
+
+                const newMachine = { id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, boomLengths: boomLengths, charts: charts, moufles: moufles, createdAt: new Date().toISOString(), isCustom: true };
                 onSaveLocal([newMachine]); setSelectedMachineId(newMachine.id); alert("Machine importée !");
             } catch (error) { alert("Erreur import: " + error.message); } finally { setIsUploading(false); e.target.value = null; }
         }; reader.readAsBinaryString(file);
@@ -1257,7 +1300,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <div className="space-y-6">
                             
                             <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" maxLabel={`Max absolu à cette portée: ${sliderMaxMass/1000}t`} onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
-                            <CustomRange label="Portée (m)" value={inputDist} min={0} max={machine?.maxReach || 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
+                            <CustomRange label="Portée (m)" value={inputDist} min={absoluteMinReach} max={machine?.maxReach || 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
                             
                             <div className="w-full">
                                 <div className="flex justify-between items-end mb-2">
@@ -1352,6 +1395,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     <div className="text-center bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">
                                         <div className="text-[10px] uppercase font-bold text-slate-400">Contrepoids</div>
                                         <div className="font-bold text-[#004e98]">{selectedCwt} t</div>
+                                    </div>
+                                )}
+                                {/* NOUVEAU : Affichage du moufle */}
+                                {currentMoufle !== null && (
+                                    <div className="text-center bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">
+                                        <div className="text-[10px] uppercase font-bold text-slate-400">Moufle</div>
+                                        <div className="font-bold text-[#004e98]">{currentMoufle} t</div>
                                     </div>
                                 )}
                             </div>
