@@ -28,20 +28,6 @@ const DB_KEY = "cmc_levage_machines";
 const SELECTED_CRANE_KEY = "selectedCrane"; 
 const EXTERNAL_DB_URL = "engines.json";
 
-// --- DONNÉES STATIQUES (Exemple fallback) ---
-const HARDCODED_MACHINES = [
-    {
-        id: "fixed_1", source: "system", category: "telehandler", name: "Manitou MLT 625-75H", type: "telehandler", mode: "zone", maxLoad: 2500, maxReach: 3.30, maxHeight: 5.90,
-        zones: [
-            { id: '2500kg', load: 2500, color: 'rgba(22, 163, 74, 0.4)', borderColor: 'rgba(22, 163, 74, 1)', points: [[0,0], [1.1,0], [1.1,1.5], [0.9,3.0], [0.5,4.5], [0,5.5]] },
-            { id: '2000kg', load: 2000, color: 'rgba(34, 197, 94, 0.3)', borderColor: 'rgba(34, 197, 94, 1)', points: [[1.1,0], [1.7,0], [1.7,1.2], [1.5,3.0], [1.2,5.5], [0.6,5.9], [0,5.9], [0,4.5], [0.5,4.5], [0.9,3.0], [1.1,1.5]] },
-            { id: '1500kg', load: 1500, color: 'rgba(234, 179, 8, 0.3)', borderColor: 'rgba(234, 179, 8, 1)', points: [[1.7,0], [2.2,0], [2.2,0.8], [1.9,2.5], [1.5,3.0], [1.2,5.5], [1.5,3.0], [1.7,1.2]] },
-            { id: '1000kg', load: 1000, color: 'rgba(249, 115, 22, 0.3)', borderColor: 'rgba(249, 115, 22, 1)', points: [[2.2,0], [2.85,0], [2.85,0.5], [2.3,2.0], [1.9,2.5], [2.2,0.8]] },
-            { id: '800kg', load: 800, color: 'rgba(239, 68, 68, 0.3)', borderColor: 'rgba(239, 68, 68, 1)', points: [[2.85,0], [3.15,0], [3.3,0.5], [3.15,2], [3.10,2.5], [2.85,3.25]] }
-        ]
-    }
-];
-
 // --- UTILITAIRES ---
 const isPointInPolygon = (x, y, polygon) => {
     let inside = false;
@@ -1481,7 +1467,7 @@ const App = () => {
 
     useEffect(() => { const saved = localStorage.getItem(DB_KEY); if (saved) { try { const parsed = JSON.parse(saved); setLocalMachines(parsed.map(m => ({...m, source: 'local'}))); } catch (e) { console.error("Err LocalStorage", e); } } }, []);
     useEffect(() => { const fetchExternal = async () => { try { const response = await fetch(EXTERNAL_DB_URL); if (!response.ok) throw new Error("Fichier non trouvé"); const data = await response.json(); setExternalMachines(data.map(m => ({...m, source: 'external'}))); } catch (err) { console.warn("Mode dégradé"); } }; fetchExternal(); }, []);
-    const allMachines = useMemo(() => { return [...HARDCODED_MACHINES, ...externalMachines, ...localMachines]; }, [externalMachines, localMachines]);
+    const allMachines = useMemo(() => { return [...externalMachines, ...localMachines]; }, [externalMachines, localMachines]);
 
     const saveLocal = (newMachines) => { const updated = [...localMachines, ...newMachines.map(m => ({...m, source: 'local'}))]; setLocalMachines(updated); localStorage.setItem(DB_KEY, JSON.stringify(updated)); };
     const deleteLocal = (id) => { if(confirm("Supprimer cette machine locale ?")) { const updated = localMachines.filter(m => m.id !== id); setLocalMachines(updated); localStorage.setItem(DB_KEY, JSON.stringify(updated)); } };
