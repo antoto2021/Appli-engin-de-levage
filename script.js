@@ -1211,22 +1211,39 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={paddingLeft - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
                 
                 {zonesToDraw.map(z => {
-                    // Calcul mathématique du vrai centre de gravité (Centroid) du polygone
-                    let cx = 0, cy = 0, area = 0;
+                    // 1. Trouver les bords gauche et droit extrêmes de la zone
+                    let minX = Infinity, maxX = -Infinity;
+                    z.points.forEach(p => {
+                        if (p[0] < minX) minX = p[0];
+                        if (p[0] > maxX) maxX = p[0];
+                    });
+                    
+                    // 2. On cible le milieu horizontal parfait de la zone
+                    let cx = (minX + maxX) / 2;
+                    
+                    // 3. On trace une ligne verticale imaginaire pour trouver le plafond et le plancher
+                    let intersectYs = [];
                     const pts = z.points;
                     for (let i = 0; i < pts.length; i++) {
-                        let j = (i + 1) % pts.length;
-                        let factor = pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
-                        area += factor;
-                        cx += (pts[i][0] + pts[j][0]) * factor;
-                        cy += (pts[i][1] + pts[j][1]) * factor;
+                        let p1 = pts[i];
+                        let p2 = pts[(i + 1) % pts.length];
+                        
+                        // Si le bord de la zone croise notre ligne verticale
+                        if ((p1[0] <= cx && p2[0] > cx) || (p2[0] <= cx && p1[0] > cx)) {
+                            let t = (cx - p1[0]) / (p2[0] - p1[0]);
+                            let y = p1[1] + t * (p2[1] - p1[1]);
+                            intersectYs.push(y);
+                        }
                     }
-                    area /= 2;
-                    if (area !== 0) {
-                        cx = cx / (6 * area);
-                        cy = cy / (6 * area);
+                    
+                    let cy;
+                    // 4. Si on trouve bien un haut et un bas, on se place pile au centre
+                    if (intersectYs.length >= 2) {
+                        let yMin = Math.min(...intersectYs);
+                        let yMax = Math.max(...intersectYs);
+                        cy = (yMin + yMax) / 2;
                     } else {
-                        // Secours
+                        // Secours si la forme est anormale
                         cx = pts.reduce((sum, p) => sum + p[0], 0) / pts.length;
                         cy = pts.reduce((sum, p) => sum + p[1], 0) / pts.length;
                     }
