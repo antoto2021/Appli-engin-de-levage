@@ -1211,12 +1211,30 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={paddingLeft - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
                 
                 {zonesToDraw.map(z => {
-                    let centerX = z.points.reduce((sum, p) => sum + p[0], 0) / z.points.length;
-                    let centerY = z.points.reduce((sum, p) => sum + p[1], 0) / z.points.length;
+                    // Calcul mathématique du vrai centre de gravité (Centroid) du polygone
+                    let cx = 0, cy = 0, area = 0;
+                    const pts = z.points;
+                    for (let i = 0; i < pts.length; i++) {
+                        let j = (i + 1) % pts.length;
+                        let factor = pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
+                        area += factor;
+                        cx += (pts[i][0] + pts[j][0]) * factor;
+                        cy += (pts[i][1] + pts[j][1]) * factor;
+                    }
+                    area /= 2;
+                    if (area !== 0) {
+                        cx = cx / (6 * area);
+                        cy = cy / (6 * area);
+                    } else {
+                        // Secours
+                        cx = pts.reduce((sum, p) => sum + p[0], 0) / pts.length;
+                        cy = pts.reduce((sum, p) => sum + p[1], 0) / pts.length;
+                    }
+
                     return ( 
                         <g key={z.id}>
                             <path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || '#ffffff'} strokeWidth="1.5" strokeLinejoin="round" />
-                            {z.points.length > 2 && (<text x={scaleX(centerX)} y={scaleY(centerY)} fontSize="11" fontWeight="bold" fill="#ffffff" textAnchor="middle" dominantBaseline="middle" style={{textShadow: '0px 0px 3px rgba(0,0,0,0.5)'}}>{z.load/1000}t</text>)}
+                            {z.points.length > 2 && (<text x={scaleX(cx)} y={scaleY(cy)} fontSize="11" fontWeight="bold" fill="#ffffff" textAnchor="middle" dominantBaseline="middle" style={{textShadow: '0px 0px 3px rgba(0,0,0,0.5)'}}>{z.load/1000}t</text>)}
                         </g> 
                     );
                 })}
@@ -1333,38 +1351,48 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                             </div>
 
-                            {machine && (machine.mode === 'multi_chart' || machine.hasTools) && (
-                                <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
-                                        {machine.mode === 'multi_chart' && (
-                                            <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
-                                                {isAutoConfig ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {machine.mode === 'multi_chart' && (
-                                        <>
-                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {machine.boomLengths.map(len => ( 
-                                                        <button key={len} onClick={() => { setSelectedBoomLen(len); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedBoomLen === len ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {len} </button> 
-                                                    ))}
-                                                </div>
+                                    {machine && (machine.mode === 'multi_chart' || (machine.hasTools && machine.tools && machine.tools.length > 0)) && (
+                                        <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
+                                                {machine.mode === 'multi_chart' && (
+                                                    <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
+                                                        {isAutoConfig ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
+                                                    </button>
+                                                )}
                                             </div>
-                                            {machine.hasCounterweights && (
+        
+                                            {machine.mode === 'multi_chart' && (
+                                                <>
+                                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                        <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {machine.boomLengths.map(len => ( 
+                                                                <button key={len} onClick={() => { setSelectedBoomLen(len); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedBoomLen === len ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {len} </button> 
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    {machine.hasCounterweights && (
+                                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                            <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids (t)</label>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {machine.counterweights.map(cwt => ( 
+                                                                    <button key={cwt} onClick={() => { setSelectedCwt(cwt); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedCwt === cwt ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {cwt} </button> 
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                            {machine.hasTools && machine.tools && machine.tools.length > 0 && (
                                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids (t)</label>
+                                                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block flex items-center gap-2"><Anchor size={12}/> Accessoire / Outil</label>
                                                     <div className="flex flex-wrap gap-2">
-                                                        {machine.counterweights.map(cwt => ( 
-                                                            <button key={cwt} onClick={() => { setSelectedCwt(cwt); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedCwt === cwt ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {cwt} </button> 
-                                                        ))}
+                                                        {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {tool} </button> ))}
                                                     </div>
                                                 </div>
                                             )}
-                                        </>
+                                        </div>
                                     )}
                                 </div>
                             )}
