@@ -69,6 +69,48 @@
     }
   },
   {
+    "id": "machine_manitou_mht_10135_st5",
+    "source": "local",
+    "category": "telehandler",
+    "name": "Manitou MHT 10135 ST5",
+    "type": "telehandler",
+    "mode": "zone_multi_tool",
+    "maxLoad": 5500,
+    "maxReach": 4.12,
+    "maxHeight": 7.36,
+    "hasTelescoping": false,
+    "hasCounterweights": false,
+    "hasTools": true,
+    "tools": [
+      "Accessoire Standard"
+    ],
+    "charts": {
+      "Accessoire Standard": {
+        "zones": [
+          {
+            "id": "5.5t",
+            "load": 5500,
+            "color": "rgba(59, 130, 246, 0.5)",
+            "points": [
+              [
+                3.21,
+                3.21,
+                4.12,
+                4.09
+              ],
+              [
+                0,
+                7.36,
+                6.01,
+                -0.07
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "manitou_mht_790_st5",
     "source": "local",
     "category": "telehandler",
