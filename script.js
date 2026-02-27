@@ -1351,54 +1351,51 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                             </div>
 
-                                    {machine && (machine.mode === 'multi_chart' || (machine.hasTools && machine.tools && machine.tools.length > 0)) && (
-                                        <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
-                                                {machine.mode === 'multi_chart' && (
-                                                    <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
-                                                        {isAutoConfig ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
-                                                    </button>
-                                                )}
+                            {machine && (machine.mode === 'multi_chart' || (machine.hasTools && machine.tools && machine.tools.length > 0)) && (
+                                <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
+                                        {machine.mode === 'multi_chart' && (
+                                            <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
+                                                {isAutoConfig ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {machine.mode === 'multi_chart' && (
+                                        <>
+                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {machine.boomLengths.map(len => ( 
+                                                        <button key={len} onClick={() => { setSelectedBoomLen(len); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedBoomLen === len ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {len} </button> 
+                                                    ))}
+                                                </div>
                                             </div>
-        
-                                            {machine.mode === 'multi_chart' && (
-                                                <>
-                                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                        <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {machine.boomLengths.map(len => ( 
-                                                                <button key={len} onClick={() => { setSelectedBoomLen(len); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedBoomLen === len ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {len} </button> 
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    {machine.hasCounterweights && (
-                                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                            <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids (t)</label>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {machine.counterweights.map(cwt => ( 
-                                                                    <button key={cwt} onClick={() => { setSelectedCwt(cwt); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedCwt === cwt ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {cwt} </button> 
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                            {machine.hasTools && machine.tools && machine.tools.length > 0 && (
+                                            {machine.hasCounterweights && (
                                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block flex items-center gap-2"><Anchor size={12}/> Accessoire / Outil</label>
+                                                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids (t)</label>
                                                     <div className="flex flex-wrap gap-2">
-                                                        {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {tool} </button> ))}
+                                                        {machine.counterweights.map(cwt => ( 
+                                                            <button key={cwt} onClick={() => { setSelectedCwt(cwt); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedCwt === cwt ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {cwt} </button> 
+                                                        ))}
                                                     </div>
                                                 </div>
                                             )}
+                                        </>
+                                    )}
+                                    {machine.hasTools && machine.tools && machine.tools.length > 0 && (
+                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                            <label className="text-xs font-bold uppercase text-slate-500 mb-2 block flex items-center gap-2"><Anchor size={12}/> Accessoire / Outil</label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {tool} </button> ))}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
                     </div>
-                </div>
                 
                 <div className="lg:col-span-8 space-y-6">
                     <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row ${bannerBg}`}>
