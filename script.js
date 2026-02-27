@@ -1396,6 +1396,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             )}
                         </div>
                     </div>
+                </div>
                 
                 <div className="lg:col-span-8 space-y-6">
                     <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row ${bannerBg}`}>
