@@ -28,7 +28,7 @@ const HomePage = ({ navigate }) => (
     <div className="flex flex-col items-center justify-center min-h-[80vh] bg-slate-50 p-6 animate-fade-in">
         <div className="max-w-4xl w-full text-center space-y-12">
             <div className="animate-slide-up" style={{animationDelay: '0.1s'}}>
-                <h1 className="text-4xl md:text-5xl font-extrabold text-slate-800 leading-tight">Bienvenue sur le portail <br/><span className="text-[#004e98]">Levage Sécurisé</span></h1>
+                <h1 className="text-4xl md:text-5xl font-extrabold text-slate-800 leading-tight">Bienvenue sur le portail <br/><span className="text-[#004e98]">Assistant de levage</span></h1>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10 max-w-4xl mx-auto">
                 <button onClick={() => navigate('determine')} className="animate-slide-up group relative h-64 rounded-xl bg-[#004e98] text-white p-8 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center gap-6" style={{animationDelay: '0.2s'}}>
@@ -94,10 +94,10 @@ let hasPerformedCheck = false;
 
 // DONNÉES DU TUTORIEL
 const tutorialSlides = [
-    { icon: "👋", title: "Bienvenue !", desc: "Levage Sécurisé : Votre assistant digital pour prédimensionner vos levages sur chantier." },
+    { icon: "👋", title: "Bienvenue !", desc: "Assistant de levage : Votre assistant digital pour prédimensionner vos levages sur chantier." },
     { icon: "🏗️", title: "Choix de l'engin", desc: "Sélectionnez votre grue parmi la base de données système ou importez vos propres modèles via Excel." },
     { icon: "📐", title: "Configuration", desc: "Définissez les paramètres du levage (Masse, Portée). L'appli vous donneras automatiquement la flèche et le contrepoids adapté" },
-    { icon: "✅", title: "Vérification", desc: "Visualisez instantanément si le levage est autorisé (Vert) ou interdit (Rouge) grâce aux abaques intégrés." },
+    { icon: "✅", title: "Vérification", desc: "Visualisez instantanément si le levage est autorisé (Vert), autorisé mais risqué (Orange) ou interdit (Rouge) grâce aux abaques intégrés." },
     { icon: "📄", title: "Prédimensionnement", desc: "Générez des rapports de prédimensionnement PDF prêts à être envoyé pour une vérification." },
     { icon: "🔄", title: "Mises à jour", desc: "L'application vérifie automatiquement les nouvelles versions via GitHub tout en conservant vos données locales." }
 ];
