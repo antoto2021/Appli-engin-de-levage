@@ -300,7 +300,7 @@ const GraphChart2D = ({ machine, inputDist, inputHeight, selectedBoomLen, select
                     <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
                 )}
 
-                <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
+                <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="1" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
                 <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
