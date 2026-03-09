@@ -182,6 +182,137 @@ const PredimModal = ({ machine, inputLoad, inputDist, inputHeight, isSafe, safeL
     );
 };
 
+const GraphChart2D = ({ machine, inputDist, inputHeight, selectedBoomLen, selectedTool, isSafe, isAngleWarning, badgeText, badgeBg }) => {
+        if(!machine) return null;
+        
+        const width = 600; const height = 450; 
+        const padding = 50; 
+        const isTelehandler = machine.category === 'telehandler';
+
+        const paddingLeft = 80; 
+        
+        const maxX = Math.max(machine.maxReach * 1.1, inputDist * 1.1); 
+        const maxY = Math.max(machine.maxHeight, inputHeight * 1.1, 5); 
+        
+        const scaleX = (d) => paddingLeft + (d / maxX) * (width - paddingLeft - padding); 
+        const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
+        
+        const hookX = scaleX(inputDist); 
+        const hookY = scaleY(inputHeight);
+        
+        const pivotX = scaleX(0);
+        const pivotY = scaleY(0);
+        
+        let tipX = hookX; 
+        let tipY; 
+
+        if (machine.mode === 'multi_chart') {
+            const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
+            tipY = scaleY(isNaN(hGeo) ? 0 : hGeo);
+        } else { tipY = hookY; }
+
+        const gridStep = isTelehandler ? 1 : (maxX > 60 ? 10 : 5);
+        let zonesToDraw = [];
+        if (machine.mode === 'zone') zonesToDraw = machine.zones;
+        else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) zonesToDraw = machine.charts[selectedTool].zones;
+        
+        const statusColor = !isSafe ? "#dc2626" : (isAngleWarning ? "#f59e0b" : "#16a34a"); 
+        const statusFill = !isSafe ? "#ef4444" : (isAngleWarning ? "#fbbf24" : "#22c55e");
+
+        return (
+        <div className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
+            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+                <defs>
+                    <pattern id="grid" width={scaleX(gridStep) - scaleX(0)} height={scaleY(0) - scaleY(gridStep)} patternUnits="userSpaceOnUse">
+                        <path d={`M ${scaleX(gridStep) - scaleX(0)} 0 L 0 0 0 ${scaleY(0) - scaleY(gridStep)}`} fill="none" stroke="#f1f5f9" strokeWidth="1"/>
+                    </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="white"/>
+                <rect x={paddingLeft} y={padding} width={width-paddingLeft-padding} height={height-2*padding} fill="url(#grid)" />
+                
+                <line x1={paddingLeft} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
+                <line x1={paddingLeft} y1={padding} x2={paddingLeft} y2={height-padding} stroke="#334155" strokeWidth="2" />
+                
+                {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
+                {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={paddingLeft - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
+                
+                {zonesToDraw.map(z => {
+                    // 1. Trouver les bords gauche et droit extrêmes de la zone
+                    let minX = Infinity, maxX = -Infinity;
+                    z.points.forEach(p => {
+                        if (p[0] < minX) minX = p[0];
+                        if (p[0] > maxX) maxX = p[0];
+                    });
+                    
+                    // 2. On cible le milieu horizontal parfait de la zone
+                    let cx = (minX + maxX) / 2;
+                    
+                    // 3. On trace une ligne verticale imaginaire pour trouver le plafond et le plancher
+                    let intersectYs = [];
+                    const pts = z.points;
+                    for (let i = 0; i < pts.length; i++) {
+                        let p1 = pts[i];
+                        let p2 = pts[(i + 1) % pts.length];
+                        
+                        // Si le bord de la zone croise notre ligne verticale
+                        if ((p1[0] <= cx && p2[0] > cx) || (p2[0] <= cx && p1[0] > cx)) {
+                            let t = (cx - p1[0]) / (p2[0] - p1[0]);
+                            let y = p1[1] + t * (p2[1] - p1[1]);
+                            intersectYs.push(y);
+                        }
+                    }
+                    
+                    let cy;
+                    // 4. Si on trouve bien un haut et un bas, on se place pile au centre
+                    if (intersectYs.length >= 2) {
+                        let yMin = Math.min(...intersectYs);
+                        let yMax = Math.max(...intersectYs);
+                        cy = (yMin + yMax) / 2;
+                    } else {
+                        // Secours si la forme est anormale
+                        cx = pts.reduce((sum, p) => sum + p[0], 0) / pts.length;
+                        cy = pts.reduce((sum, p) => sum + p[1], 0) / pts.length;
+                    }
+
+                    return ( 
+                        <g key={z.id}>
+                            <path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || '#ffffff'} strokeWidth="1.5" strokeLinejoin="round" />
+                            {z.points.length > 2 && (<text x={scaleX(cx)} y={scaleY(cy)} fontSize="11" fontWeight="bold" fill="#ffffff" textAnchor="middle" dominantBaseline="middle" style={{textShadow: '0px 0px 3px rgba(0,0,0,0.5)'}}>{z.load/1000}t</text>)}
+                        </g> 
+                    );
+                })}
+
+                {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( 
+                    <path 
+                        key={len} 
+                        d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} 
+                        fill="none" 
+                        stroke={len === selectedBoomLen ? "#0f172a" : "#cbd5e1"} 
+                        strokeWidth={len === selectedBoomLen ? "2" : "1"} 
+                        strokeDasharray={len === selectedBoomLen ? "" : "4 2"}
+                    /> 
+                ))}
+
+                <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="6" opacity="0.9" strokeLinecap="round" />
+                <circle cx={pivotX} cy={pivotY} r="5" fill="#0f172a" />
+
+                {machine.mode === 'multi_chart' && (
+                    <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
+                )}
+
+                <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
+                
+                <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
+                <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
+            </svg>
+            
+            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${badgeBg}`}> 
+                {badgeText} 
+            </div>
+        </div>
+        );
+    };
+
 const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onImportLocal }) => {
     const [showDbManager, setShowDbManager] = useState(false);
     const localMachinesOnly = useMemo(() => allMachines.filter(m => m.source === 'local'), [allMachines]);
@@ -547,137 +678,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         sheets.forEach(sheet => { const data = baseData.map((row, i) => { if (i === 0) return row; return row.map((cell, j) => { if (j === 0 || cell === null) return cell; return Number((cell * sheet.multiplier).toFixed(1)); }); }); const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, sheet.name); }); XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
     };
 
-    const GraphChart2D = () => {
-        if(!machine) return null;
-        
-        const width = 600; const height = 450; 
-        const padding = 50; 
-        const isTelehandler = machine.category === 'telehandler';
-
-        const paddingLeft = 80; 
-        
-        const maxX = Math.max(machine.maxReach * 1.1, inputDist * 1.1); 
-        const maxY = Math.max(machine.maxHeight, inputHeight * 1.1, 5); 
-        
-        const scaleX = (d) => paddingLeft + (d / maxX) * (width - paddingLeft - padding); 
-        const scaleY = (h) => height - padding - (h / maxY) * (height - 2 * padding); 
-        
-        const hookX = scaleX(inputDist); 
-        const hookY = scaleY(inputHeight);
-        
-        const pivotX = scaleX(0);
-        const pivotY = scaleY(0);
-        
-        let tipX = hookX; 
-        let tipY; 
-
-        if (machine.mode === 'multi_chart') {
-            const hGeo = Math.sqrt(Math.pow(selectedBoomLen, 2) - Math.pow(inputDist, 2));
-            tipY = scaleY(isNaN(hGeo) ? 0 : hGeo);
-        } else { tipY = hookY; }
-
-        const gridStep = isTelehandler ? 1 : (maxX > 60 ? 10 : 5);
-        let zonesToDraw = [];
-        if (machine.mode === 'zone') zonesToDraw = machine.zones;
-        else if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) zonesToDraw = machine.charts[selectedTool].zones;
-        
-        const statusColor = !isSafe ? "#dc2626" : (isAngleWarning ? "#f59e0b" : "#16a34a"); 
-        const statusFill = !isSafe ? "#ef4444" : (isAngleWarning ? "#fbbf24" : "#22c55e");
-
-        return (
-        <div className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
-                <defs>
-                    <pattern id="grid" width={scaleX(gridStep) - scaleX(0)} height={scaleY(0) - scaleY(gridStep)} patternUnits="userSpaceOnUse">
-                        <path d={`M ${scaleX(gridStep) - scaleX(0)} 0 L 0 0 0 ${scaleY(0) - scaleY(gridStep)}`} fill="none" stroke="#f1f5f9" strokeWidth="1"/>
-                    </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="white"/>
-                <rect x={paddingLeft} y={padding} width={width-paddingLeft-padding} height={height-2*padding} fill="url(#grid)" />
-                
-                <line x1={paddingLeft} y1={height-padding} x2={width-padding} y2={height-padding} stroke="#334155" strokeWidth="2" />
-                <line x1={paddingLeft} y1={padding} x2={paddingLeft} y2={height-padding} stroke="#334155" strokeWidth="2" />
-                
-                {Array.from({ length: Math.ceil(maxX / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxX) return null; return <text key={`x${i}`} x={scaleX(val)} y={height - padding + 20} fontSize="10" textAnchor="middle" fill="#64748b">{val}</text>; })}
-                {Array.from({ length: Math.ceil(maxY / gridStep) + 1 }).map((_, i) => { const val = i * gridStep; if (val > maxY) return null; return <text key={`y${i}`} x={paddingLeft - 10} y={scaleY(val) + 3} fontSize="10" textAnchor="end" fill="#64748b">{val}</text>; })}
-                
-                {zonesToDraw.map(z => {
-                    // 1. Trouver les bords gauche et droit extrêmes de la zone
-                    let minX = Infinity, maxX = -Infinity;
-                    z.points.forEach(p => {
-                        if (p[0] < minX) minX = p[0];
-                        if (p[0] > maxX) maxX = p[0];
-                    });
-                    
-                    // 2. On cible le milieu horizontal parfait de la zone
-                    let cx = (minX + maxX) / 2;
-                    
-                    // 3. On trace une ligne verticale imaginaire pour trouver le plafond et le plancher
-                    let intersectYs = [];
-                    const pts = z.points;
-                    for (let i = 0; i < pts.length; i++) {
-                        let p1 = pts[i];
-                        let p2 = pts[(i + 1) % pts.length];
-                        
-                        // Si le bord de la zone croise notre ligne verticale
-                        if ((p1[0] <= cx && p2[0] > cx) || (p2[0] <= cx && p1[0] > cx)) {
-                            let t = (cx - p1[0]) / (p2[0] - p1[0]);
-                            let y = p1[1] + t * (p2[1] - p1[1]);
-                            intersectYs.push(y);
-                        }
-                    }
-                    
-                    let cy;
-                    // 4. Si on trouve bien un haut et un bas, on se place pile au centre
-                    if (intersectYs.length >= 2) {
-                        let yMin = Math.min(...intersectYs);
-                        let yMax = Math.max(...intersectYs);
-                        cy = (yMin + yMax) / 2;
-                    } else {
-                        // Secours si la forme est anormale
-                        cx = pts.reduce((sum, p) => sum + p[0], 0) / pts.length;
-                        cy = pts.reduce((sum, p) => sum + p[1], 0) / pts.length;
-                    }
-
-                    return ( 
-                        <g key={z.id}>
-                            <path d={`M ${scaleX(z.points[0][0])} ${scaleY(z.points[0][1])}` + z.points.slice(1).map(p => ` L ${scaleX(p[0])} ${scaleY(p[1])}`).join("") + " Z"} fill={z.color} stroke={z.borderColor || '#ffffff'} strokeWidth="1.5" strokeLinejoin="round" />
-                            {z.points.length > 2 && (<text x={scaleX(cx)} y={scaleY(cy)} fontSize="11" fontWeight="bold" fill="#ffffff" textAnchor="middle" dominantBaseline="middle" style={{textShadow: '0px 0px 3px rgba(0,0,0,0.5)'}}>{z.load/1000}t</text>)}
-                        </g> 
-                    );
-                })}
-
-                {machine.mode === 'multi_chart' && machine.boomLengths.map(len => ( 
-                    <path 
-                        key={len} 
-                        d={`M ${scaleX(0)} ${scaleY(len)} A ${scaleX(len)-scaleX(0)} ${scaleY(0)-scaleY(len)} 0 0 1 ${scaleX(len)} ${scaleY(0)}`} 
-                        fill="none" 
-                        stroke={len === selectedBoomLen ? "#0f172a" : "#cbd5e1"} 
-                        strokeWidth={len === selectedBoomLen ? "2" : "1"} 
-                        strokeDasharray={len === selectedBoomLen ? "" : "4 2"}
-                    /> 
-                ))}
-
-                <line x1={pivotX} y1={pivotY} x2={tipX} y2={tipY} stroke={statusColor} strokeWidth="6" opacity="0.9" strokeLinecap="round" />
-                <circle cx={pivotX} cy={pivotY} r="5" fill="#0f172a" />
-
-                {machine.mode === 'multi_chart' && (
-                    <line x1={tipX} y1={tipY} x2={hookX} y2={hookY} stroke="#334155" strokeWidth="2" strokeDasharray="4 2" />
-                )}
-
-                <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="3" className="transition-all duration-300 ease-out" />
-                
-                <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
-                <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
-            </svg>
-            
-            <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${badgeBg}`}> 
-                {badgeText} 
-            </div>
-        </div>
-        );
-    };
-
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
             {showDbManager && <DbManagerModal machines={localMachinesOnly} onClose={() => setShowDbManager(false)} onDelete={onDeleteLocal} onReset={onResetLocal} onImport={onImportLocal}/>}
@@ -859,7 +859,17 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         </div>
                     )}
 
-                    <GraphChart2D />
+                    <GraphChart2D 
+                        machine={machine}
+                        inputDist={inputDist}
+                        inputHeight={inputHeight}
+                        selectedBoomLen={selectedBoomLen}
+                        selectedTool={selectedTool}
+                        isSafe={isSafe}
+                        isAngleWarning={isAngleWarning}
+                        badgeText={badgeText}
+                        badgeBg={badgeBg}
+                    />
                 </div>
             </div>
         </div>
