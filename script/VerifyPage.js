@@ -430,7 +430,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
             if (inputHeight > machine.maxHeight + 5) setInputHeight(machine.maxHeight > 0 ? machine.maxHeight : 2);
         }
-    }, [machine, absoluteMinReach]);
+    }, [machine, absoluteMinReach, isAutoConfig]);
 
     // --- LOGIQUE AUTO CONFIG TOTALE INTÉGRANT LA TOLÉRANCE D'ANGLE ---
     useEffect(() => {
@@ -480,7 +480,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             if (bestCwt && bestCwt !== selectedCwt) { setSelectedCwt(bestCwt); }
             if (bestBoom && bestBoom !== selectedBoomLen) { setSelectedBoomLen(bestBoom); }
         }
-    }, [isAutoConfig, inputLoad, inputDist, inputHeight, machine]);
+    }, [isAutoConfig, inputLoad, inputDist, inputHeight, machine, selectedTool]);
 
     // --- CAPACITÉ MAX ABSOLUE ---
     const absoluteMaxCapAtDist = useMemo(() => {
@@ -744,20 +744,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             
                             <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={0.05} unit="t" maxLabel={`Max absolu à cette portée: ${sliderMaxMass/1000}t`} onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Portée (m)" value={inputDist} min={absoluteMinReach} max={machine?.maxReach > 0 ? machine.maxReach : 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
-                            
-                            <div className="w-full">
-                                <div className="flex justify-between items-end mb-2">
-                                    <label className="text-lg font-bold text-slate-700">Hauteur Levage</label>
-                                    <span className="text-xl font-bold text-[#004e98]">{inputHeight} <span className="text-sm">m</span></span>
-                                </div>
-                                <div className="relative w-full h-8">
-                                    <input type="range" min={0} max={machine?.maxHeight + 5} step={0.5} value={inputHeight} onChange={(e) => setInputHeight(parseFloat(e.target.value))} className="absolute w-full h-full z-20 opacity-0 cursor-pointer" />
-                                    <div className="absolute top-1/2 left-0 w-full h-3 bg-slate-200 rounded-full -translate-y-1/2 overflow-hidden z-10 pointer-events-none">
-                                        <div style={{ width: `${((inputHeight - 0) / (machine?.maxHeight + 5 - 0)) * 100}%` }} className="h-full bg-[#004e98] transition-all duration-100 ease-out"></div>
-                                    </div>
-                                    <div style={{ left: `calc(${((inputHeight - 0) / (machine?.maxHeight + 5 - 0)) * 100}% - 12px)` }} className="absolute top-1/2 w-6 h-6 bg-[#004e98] border-2 border-white rounded-full shadow-md -translate-y-1/2 z-10 pointer-events-none transition-all duration-100 ease-out"></div>
-                                </div>
-                            </div>
+                            <CustomRange label="Hauteur Levage" value={inputHeight} min={0} max={(machine?.maxHeight ?? 0) + 5} step={0.5} unit="m" onChange={(e) => setInputHeight(parseFloat(e.target.value))} />
 
                             {machine && (machine.mode === 'multi_chart' || (machine.hasTools && machine.tools && machine.tools.length > 0)) && (
                                 <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
