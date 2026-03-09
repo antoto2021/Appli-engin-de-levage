@@ -127,6 +127,8 @@ const DeterminePage = ({ allMachines }) => {
             finalCap = CraneCalculator.getCapacity(suggestedCrane, distance, height, null, null, null);
         }
 
+        const currentMoufle = getMoufleForLoad(suggestedCrane, targetMassKg);
+
         setModalData({
             machine: suggestedCrane,
             inputLoad: targetMassKg,
@@ -136,7 +138,7 @@ const DeterminePage = ({ allMachines }) => {
             safeLoad: finalCap,
             currentCwt: bestCwt,
             selectedBoomLen: bestBoom,
-            currentMoufle: currentMoufle
+            currentMoufle: currentMoufle // Maintenant, la variable est bien définie !
         });
     };
 
