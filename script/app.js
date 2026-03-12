@@ -16,9 +16,9 @@ const Header = ({ goHome }) => (
                 <button onClick={() => window.openInfoModal()} className="text-[#004e98] text-2xl font-bold hover:opacity-80 transition p-2">
                     <Info size={28} />
                 </button>
-                <div className="hidden md:flex items-center gap-2 text-xs text-emerald-700 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                {/*<div className="hidden md:flex items-center gap-2 text-xs text-emerald-700 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
                     <Layers size={14} /> V10.3
-                </div>
+                </div>*/}
             </div>
         </div>
     </header>
