@@ -126,13 +126,13 @@ const PredimModal = ({ machine, inputLoad, inputDist, inputHeight, isSafe, safeL
         
         const subject = encodeURIComponent(`[${chantierName}] Prédimensionnement ${machine.category === 'telehandler' ? 'Télescopique' : 'Grue'} - ${new Date().toLocaleDateString()}`);
         const body = encodeURIComponent(
-            `Bonjour l'équipe,\n\nVeuillez trouver ci-joint le prédimensionnement de levage pour le chantier : ${chantierName}.\n\n` +
+            `Bonjour à tous,\n\nVeuillez trouver ci-joint le prédimensionnement de levage pour le chantier : ${chantierName}.\n\n` +
             `Détails rapides :\n` +
             `- Engin : ${machine.name}\n` +
             `- Masse : ${inputLoad / 1000} t\n` +
             `- Portée : ${inputDist} m\n` +
             `- Statut : ${isSafe ? 'CONFORME' : 'NON CONFORME'}\n\n` +
-            `⚠️ N'oubliez pas d'insérer le PDF téléchargé en pièce jointe de cet e-mail !\n\nCordialement.`
+            `⚠️ N'oubliez pas d'insérer le PDF prédimensionnement téléchargé en pièce jointe de cet e-mail !\n\nCordialement.`
         );
         
         // Ouvre le client mail par défaut
