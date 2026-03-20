@@ -5,9 +5,9 @@ window.startInteractiveTutorial = () => {
         window.closeInfoModal();
     }
 
-    // On force l'application à démarrer le tuto sur l'onglet Déterminer
+    // On force l'application à démarrer le tuto sur la page d'acceuil
     if (typeof window.navigateToPage === 'function') {
-        window.navigateToPage('determine');
+        window.navigateToPage('home');
     }
 
     // Configuration de Driver.js
@@ -27,6 +27,24 @@ window.startInteractiveTutorial = () => {
                     title: "Bienvenue dans l'assistant de levage 👋", 
                     description: 'Découvrons ensemble comment utiliser l\'application pas à pas pour sécuriser vos opérations de levage.' 
                 } 
+            },
+			
+			// --- TRANSITION : ACCUEIL -> DÉTERMINER ---
+            {
+                element: '#tour-nav-determine', // Le gros bouton sur l'accueil
+                popover: { 
+                    title: '1. Module de Détermination', 
+                    description: 'Nous allons commencer par le module Déterminer. <b>Cliquez sur Suivant pour y aller.</b>',
+                    side: "bottom"
+                },
+                onNextClick: () => {
+                    // On change d'onglet
+                    window.navigateToPage('determine');
+                    // On demande à Driver d'attendre 500ms (le temps de l'animation)
+                    setTimeout(() => {
+                        driverObj.moveNext();
+                    }, 500);
+                }
             },
 
             // --- ONGLET 1 : DÉTERMINER ---
@@ -66,25 +84,21 @@ window.startInteractiveTutorial = () => {
                 } 
             },
 
-            // --- TRANSITION : ONGLET DÉTERMINER -> VÉRIFIER ---
+            // --- TRANSITION : DÉTERMINER -> VÉRIFIER ---
             {
-                element: '#tour-nav-verify', // À ajouter sur le bouton "Vérifier" dans le Header (app.js)
+                // On utilise une astuce : on cible un élément toujours présent (comme le body) 
+                // pour faire la transition, au lieu de chercher le bouton du menu
                 popover: { 
                     title: '5. Module de Vérification', 
-                    description: 'Une fois la machine choisie, passons à l\'onglet Vérifier pour simuler la manœuvre en détail. <b>Cliquez sur Suivant pour changer d\'onglet automatiquement.</b>',
-                    side: "bottom"
+                    description: 'Une fois la machine choisie, passons à l\'onglet Vérifier pour simuler la manœuvre en détail. <b>Cliquez sur Suivant.</b>',
                 },
                 onNextClick: () => {
-                    // Force le passage à l'onglet vérifier
-                    if (typeof window.navigateToPage === 'function') {
-                        window.navigateToPage('verify');
-                    }
-                    
-                    // On demande à Driver.js d'attendre un peu que React dessine la nouvelle page (les sliders, le graph)
-                    // puis de passer à la bulle suivante
+                    // On change d'onglet
+                    window.navigateToPage('verify');
+                    // On attend 500ms que la page "Vérifier" soit bien affichée dans le DOM
                     setTimeout(() => {
                         driverObj.moveNext();
-                    }, 400); // 400ms laisse le temps à l'animation "fade-in" de se faire
+                    }, 500);
                 }
             },
 
@@ -166,7 +180,7 @@ window.startInteractiveTutorial = () => {
         ]
     });
 
-    // On lance le tutoriel ! (Il commence obligatoirement par Déterminer grâce au code au début de la fonction)
+    // On lance le tutoriel ! (Il commence obligatoirement par la page d'acceuil grâce au code au début de la fonction)
     // On attend 100ms pour être sûr que la page Déterminer est bien affichée
     setTimeout(() => {
         driverObj.drive();
