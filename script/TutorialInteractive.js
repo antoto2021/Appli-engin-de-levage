@@ -5,6 +5,11 @@ window.startInteractiveTutorial = () => {
         window.closeInfoModal();
     }
 
+    // On force l'application à démarrer le tuto sur l'onglet Déterminer
+    if (typeof window.navigateToPage === 'function') {
+        window.navigateToPage('determine');
+    }
+
     // Configuration de Driver.js
     const driverObj = window.driver.js.driver({
         showProgress: true, // Barre de progression
@@ -14,28 +19,90 @@ window.startInteractiveTutorial = () => {
         allowClose: true, // Permet de quitter en cliquant à côté
         overlayColor: 'rgba(0, 0, 0, 0.7)', // Fond sombre élégant
         
-        // Liste des étapes (à adapter selon les IDs de vos éléments)
+        // Séquence exacte du tutoriel
         steps: [
+            // --- INTRODUCTION ---
             { 
                 popover: { 
                     title: "Bienvenue dans l'assistant de levage 👋", 
-                    description: 'Découvrons ensemble comment utiliser l\'application pas à pas.' 
+                    description: 'Découvrons ensemble comment utiliser l\'application pas à pas pour sécuriser vos opérations de levage.' 
                 } 
             },
-            { 
-                element: '#tour-category-select', 
+
+            // --- ONGLET 1 : DÉTERMINER ---
+            {
+                element: '#tour-nav-determine', // À ajouter sur le bouton "Déterminer" dans le Header (app.js)
                 popover: { 
-                    title: '1. Catégorie d\'engin', 
-                    description: 'Commencez par sélectionner la famille de la machine (Télescopique, Grue Mobile...).', 
+                    title: '1. Module de Détermination', 
+                    description: 'Nous commençons sur cet onglet. Il sert à trouver automatiquement la meilleure machine pour votre chantier.',
+                    side: "bottom"
+                }
+            },
+            { 
+                element: '#tour-det-params', 
+                popover: { 
+                    title: '2. Vos contraintes de chantier', 
+                    description: 'Entrez le poids à lever (la masse), la distance (portée) et la hauteur cible.', 
+                    side: "right", 
+                    align: 'start' 
+                } 
+            },
+			{ 
+                element: '#tour-slider-critere', 
+                popover: { 
+                    title: '3. Critère de sécurité', 
+                    description: 'Réglez ici le taux d\'utilisation maximal autorisé. Par exemple, 80% signifie que vous gardez 20% de marge de sécurité.', 
                     side: "bottom", 
                     align: 'start' 
                 } 
             },
             { 
+                element: '#tour-det-results', 
+                popover: { 
+                    title: '4. Les Recommandations', 
+                    description: 'L\'algorithme affiche ici les machines capables de réaliser l\'opération, triées de la plus adaptée à la moins adaptée.', 
+                    side: "top", 
+                    align: 'center' 
+                } 
+            },
+
+            // --- TRANSITION : ONGLET DÉTERMINER -> VÉRIFIER ---
+            {
+                element: '#tour-nav-verify', // À ajouter sur le bouton "Vérifier" dans le Header (app.js)
+                popover: { 
+                    title: '5. Module de Vérification', 
+                    description: 'Une fois la machine choisie, passons à l\'onglet Vérifier pour simuler la manœuvre en détail. <b>Cliquez sur Suivant pour changer d\'onglet automatiquement.</b>',
+                    side: "bottom"
+                },
+                onNextClick: () => {
+                    // Force le passage à l'onglet vérifier
+                    if (typeof window.navigateToPage === 'function') {
+                        window.navigateToPage('verify');
+                    }
+                    
+                    // On demande à Driver.js d'attendre un peu que React dessine la nouvelle page (les sliders, le graph)
+                    // puis de passer à la bulle suivante
+                    setTimeout(() => {
+                        driverObj.moveNext();
+                    }, 400); // 400ms laisse le temps à l'animation "fade-in" de se faire
+                }
+            },
+
+            // --- ONGLET 2 : VÉRIFIER (Grue Mobile) ---
+            { 
+                element: '#tour-category-select', 
+                popover: { 
+                    title: '6. Catégorie d\'engin', 
+                    description: 'Dans cette onglet 3 familles de machines sont disponible. Pour ce tutoriel, assurez-vous que la catégorie <b>Grue Mobile</b> est sélectionnée.', 
+                    side: "bottom", 
+                    align: 'center' 
+                } 
+            },
+            { 
                 element: '#tour-BDD', 
                 popover: { 
-                    title: "2. Choix de l'engin", 
-                    description: "Cherchez votre engin dans la liste déroulante.",
+                    title: "7. Choix de l'engin", 
+                    description: "Cherchez votre grue mobile dans la liste déroulante.",
                     side: "right",
                     align: 'start'
                 } 
@@ -43,17 +110,17 @@ window.startInteractiveTutorial = () => {
             { 
                 element: '#tour-sliders', 
                 popover: { 
-                    title: '3. Paramètres du levage', 
-                    description: 'Ajustez la masse, la portée et la hauteur requises pour votre opération.', 
+                    title: '8. Simulation du levage', 
+                    description: 'Ajustez les curseurs. La portée et la hauteur vont faire bouger le bras de la grue en temps réel.', 
                     side: "right", 
                     align: 'start' 
                 } 
             },
-            { 
+			{ 
                 element: '#tour-graph', 
                 popover: { 
-                    title: '4. Vérification visuelle', 
-                    description: 'Le graphique se met à jour en temps réel. Le point vert indique que vous êtes en sécurité. S\'il devient rouge, l\'opération est interdite !', 
+                    title: '9. Validation géométrique', 
+                    description: 'Surveillez le graphique. Il trace la courbe de capacité de la grue. Si le point rouge sort de la zone, c\'est un accident potentiel !', 
                     side: "left", 
                     align: 'start' 
                 } 
@@ -61,26 +128,28 @@ window.startInteractiveTutorial = () => {
             { 
                 element: '#tour-Configuration', 
                 popover: { 
-                    title: '5. Configuration recommandée', 
-                    description: "La configuration de l'engin est indiquée automatiquement.",
-                    side: "left",
+                    title: '10. Configuration requise', 
+                    description: "L'application calcule automatiquement la meilleure longueur de flèche et le contrepoids nécessaire pour cette manœuvre.",
+                    side: "right",
                     align: 'start'
                 } 
             },
             { 
                 element: '#tour-status-card', 
                 popover: { 
-                    title: '6. Vérifiez le résultat', 
-                    description: 'Ce bandeau vous donne la réponse instantanée. <b>AUTORISÉ</b> signifie que vous êtes dans l\'abaque. Vous voyez aussi le pourcentage d\'utilisation de la machine.', 
+                    title: '11. Le Verdict', 
+                    description: 'C\'est le résultat final. <b>AUTORISÉ</b> signifie que le levage est sûr et conforme aux abaques du constructeur.', 
                     side: "bottom", 
                     align: 'center' 
                 } 
             },
+            
+            // --- LES EXPORTS ---
             { 
                 element: '#tour-pdf-btn', 
                 popover: { 
-                    title: '7. Rapport officiel', 
-                    description: 'Une fois la configuration validée, cliquez ici pour générer un rapport PDF de pré-dimensionnement pour le bureau des méthodes.', 
+                    title: '12. Le rapport de pré-dimensionnement', 
+                    description: 'Cliquer sur ce bouton pour générer en un clic le rapport PDF de pré-dimensionnement pour obtenir les détails du levage et envoyer le résultat aux équipes QPE/Méthodes.', 
                     side: "top", 
                     align: 'center' 
                 } 
@@ -88,15 +157,18 @@ window.startInteractiveTutorial = () => {
             { 
                 element: '#tour-Abaque-Excel', 
                 popover: { 
-                    title: '8. Abaque Excel', 
-                    description: 'Si vous souhaitez obtenir des informations détailles sur les capacités de levage de l\'engin vous pouvez télécharger son abaque au format Excel.', 
+                    title: '13. Abaque Excel', 
+                    description: 'Si vous avez besoin de vérifier une donnée précise, vous pouvez télécharger l\'abaque complet au format Excel.', 
                     side: "top", 
                     align: 'center' 
                 } 
-            },
+            }
         ]
     });
 
-    // On lance le tutoriel !
-    driverObj.drive();
+    // On lance le tutoriel ! (Il commence obligatoirement par Déterminer grâce au code au début de la fonction)
+    // On attend 100ms pour être sûr que la page Déterminer est bien affichée
+    setTimeout(() => {
+        driverObj.drive();
+    }, 100);
 };
