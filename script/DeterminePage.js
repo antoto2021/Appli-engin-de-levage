@@ -162,7 +162,7 @@ const DeterminePage = ({ allMachines }) => {
             )}
 
             <div className="space-y-6">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div id="tour-det-params" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator className="text-brand-blue"/> Paramètres de la charge</h2>
                     <div className="space-y-6">
                         <div><label className="block text-sm font-semibold text-slate-600 mb-2">Masse</label><div className="flex gap-2"><input type="number" value={mass || ''} onChange={(e) => setMass(parseFloat(e.target.value))} className="flex-1 p-3 text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-blue outline-none" placeholder="0"/><select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-24 p-3 text-lg font-bold bg-slate-50 border border-slate-300 rounded-lg"><option value="kg">kg</option><option value="t">t</option></select></div></div>
@@ -170,7 +170,7 @@ const DeterminePage = ({ allMachines }) => {
                         <div><label className="block text-sm font-semibold text-slate-600 mb-2">Hauteur (m)</label><div className="relative"><input type="number" value={height || ''} onChange={(e) => setHeight(parseFloat(e.target.value))} className="w-full p-3 text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-blue outline-none pl-4 pr-12" placeholder="0"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">m</span></div></div>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div id="tour-slider-critere" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                      <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><CheckCircle size={20} className="text-brand-blue"/> Critère de sécurité</h2>
                      <CustomRange label="Taux d'utilisation max" value={maxUsagePercent} min={70} max={98} step={1} unit="%" onChange={(e) => setMaxUsagePercent(parseInt(e.target.value))} maxLabel="Max : 98%"/>
                     <p className="text-xs text-slate-500 mt-2 italic">L'algorithme ne proposera que des engins utilisés à moins de {maxUsagePercent}% de leur capacité.</p>
@@ -188,7 +188,7 @@ const DeterminePage = ({ allMachines }) => {
                     )}
                 </div>
                 {result && (
-                    <div className="animate-slide-up bg-slate-50 border border-slate-300 rounded-xl p-6">
+                    <div id="tour-det-results" className="animate-slide-up bg-slate-50 border border-slate-300 rounded-xl p-6">
                         <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2"><CheckCircle size={16}/> Recommandation Auto</h3>
                         {suggestedCrane ? (
                             <div className="bg-white border border-green-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
