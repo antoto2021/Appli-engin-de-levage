@@ -8,7 +8,7 @@ window.startInteractiveTutorial = () => {
     // Configuration de Driver.js
     const driverObj = window.driver.js.driver({
         showProgress: true, // Barre de progression
-        nextBtnText: 'Compris, suivant ➜',
+        nextBtnText: 'Suivant ➜',
         prevBtnText: '⬅ Retour',
         doneBtnText: 'Terminer',
         allowClose: true, // Permet de quitter en cliquant à côté
@@ -18,7 +18,7 @@ window.startInteractiveTutorial = () => {
         steps: [
             { 
                 popover: { 
-                    title: 'Bienvenue dans SafeHoist 👋', 
+                    title: "Bienvenue dans l'assistant de levage 👋", 
                     description: 'Découvrons ensemble comment utiliser l\'application pas à pas.' 
                 } 
             },
@@ -53,7 +53,7 @@ window.startInteractiveTutorial = () => {
                 element: '#tour-pdf-btn', 
                 popover: { 
                     title: '4. Rapport officiel', 
-                    description: 'Une fois la configuration validée, cliquez ici pour générer un rapport PDF de pré-dimensionnement pour le bureau des Méthodes.', 
+                    description: 'Une fois la configuration validée, cliquez ici pour générer un rapport PDF de pré-dimensionnement pour le bureau des méthodes.', 
                     side: "top", 
                     align: 'start' 
                 } 
