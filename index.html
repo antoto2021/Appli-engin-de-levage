@@ -107,9 +107,15 @@
                             <p class="text-xs text-slate-500 italic mt-2">Application connectée pour les mises à jour, mais fonctionnant localement pour la confidentialité de vos données chantiers.</p>
                         </div>
                         
-                        <button onclick="openTutorial()" class="bg-[#d92e2e] hover:bg-[#b91c1c] text-white font-bold py-3 px-6 rounded-xl shadow-md transition text-sm w-full flex justify-center items-center gap-2">
-                            🎓 Lancer le Tutoriel Interactif
-                        </button>
+                        <div class="flex flex-col gap-3 mt-6">
+                            <button onclick="startInteractiveTutorial()" class="w-full bg-[#004e98] hover:bg-blue-800 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                                🎯 Lancer le tutoriel interactif
+                            </button>
+                        
+                            <button onclick="openTutorial()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl border border-slate-300 transition flex items-center justify-center gap-2">
+                                📄 Guide Rapide (Cartes)
+                            </button>
+                        </div>
                     </div>
                 </div>
 
