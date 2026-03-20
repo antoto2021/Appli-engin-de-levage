@@ -68,9 +68,18 @@ window.startInteractiveTutorial = () => {
                 } 
             },
             { 
+                element: '#tour-status-card', 
+                popover: { 
+                    title: '6. Vérifiez le résultat', 
+                    description: 'Ce bandeau vous donne la réponse instantanée. <b>AUTORISÉ</b> signifie que vous êtes dans l\'abaque. Vous voyez aussi le pourcentage d\'utilisation de la machine.', 
+                    side: "bottom", 
+                    align: 'center' 
+                } 
+            },
+            { 
                 element: '#tour-pdf-btn', 
                 popover: { 
-                    title: '6. Rapport officiel', 
+                    title: '7. Rapport officiel', 
                     description: 'Une fois la configuration validée, cliquez ici pour générer un rapport PDF de pré-dimensionnement pour le bureau des méthodes.', 
                     side: "top", 
                     align: 'start' 
