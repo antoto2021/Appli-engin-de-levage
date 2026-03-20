@@ -50,9 +50,18 @@ window.startInteractiveTutorial = () => {
                 } 
             },
             { 
+                element: '#tour-Configuration', 
+                popover: { 
+                    title: '4. Configuration recommandée', 
+                    description: "La configuration de l'engin est indiquée automatiquement.",
+                    side: "left",
+                    align: 'start'
+                } 
+            },
+            { 
                 element: '#tour-pdf-btn', 
                 popover: { 
-                    title: '4. Rapport officiel', 
+                    title: '5. Rapport officiel', 
                     description: 'Une fois la configuration validée, cliquez ici pour générer un rapport PDF de pré-dimensionnement pour le bureau des méthodes.', 
                     side: "top", 
                     align: 'start' 
