@@ -816,17 +816,22 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     </div>
 
                     {machine && machine.mode === 'multi_chart' && (
-                        <div id="tour-Configuration" className="flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-6 bg-slate-50 border-l-4 border-[#004e98] p-3 lg:p-4 rounded-r-xl shadow-sm mb-6">
-                            {/* BLOC CONFIGURATION RECOMMANDÉE RESPONSIVE (Le commentaire doit être à l'intérieur du div) */}
+                        <div id="tour-Configuration" className={`flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-6 bg-slate-50 border-l-4 p-3 lg:p-4 rounded-r-xl shadow-sm mb-6 transition-colors ${isAutoConfig ? 'border-[#004e98]' : 'border-slate-400'}`}>
                             
                             {/* Partie gauche : Icône + Texte */}
                             <div className="flex items-center gap-3 w-full lg:w-auto">
-                                <div className="bg-white p-2 rounded-full shadow-sm text-[#004e98]">
+                                <div className={`bg-white p-2 rounded-full shadow-sm transition-colors ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-500'}`}>
                                     <Layers size={20} />
                                 </div>
                                 <div>
-                                    <h4 className="font-bold text-slate-800 text-sm lg:text-base">Configuration Recommandée</h4>
-                                    <p className="text-xs text-slate-500">L'algorithme a ajusté la grue pour ce levage.</p>
+                                    <h4 className="font-bold text-slate-800 text-sm lg:text-base">
+                                        {isAutoConfig ? "Configuration Recommandée" : "Configuration Manuelle"}
+                                    </h4>
+                                    <p className="text-xs text-slate-500">
+                                        {isAutoConfig 
+                                            ? "L'algorithme a ajusté la grue pour ce levage." 
+                                            : "Vous avez forcé les paramètres de la grue."}
+                                    </p>
                                 </div>
                             </div>
                     
@@ -836,7 +841,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 {/* Bulle Flèche */}
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Flèche</span>
-                                    <span className="font-black text-sm md:text-base text-[#004e98] text-center whitespace-nowrap">
+                                    <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
                                         {selectedBoomLen || '0'} m
                                     </span>
                                 </div>
@@ -844,7 +849,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 {/* Bulle Contrepoids */}
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Contrepoids</span>
-                                    <span className="font-black text-sm md:text-base text-[#004e98] text-center whitespace-nowrap">
+                                    <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
                                         {selectedCwt || '0'} t
                                     </span>
                                 </div>
@@ -852,7 +857,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 {/* Bulle Moufle */}
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Moufle</span>
-                                    <span className="font-black text-sm md:text-base text-[#004e98] text-center whitespace-nowrap">
+                                    <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
                                         {currentMoufle || '0'} t
                                     </span>
                                 </div>
