@@ -793,7 +793,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     </div>
                 </div>
                 
-                <div className="lg:col-span-8 space-y-6">
+                <div id="tour-status-card" className="lg:col-span-8 space-y-6">
                     <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row ${bannerBg}`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-3 ${bannerBorder}`}></div>
                         <div className="p-6 pl-9 flex-1 flex flex-col">
