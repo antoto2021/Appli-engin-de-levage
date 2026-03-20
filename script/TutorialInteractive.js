@@ -5,7 +5,7 @@ window.startInteractiveTutorial = () => {
         window.closeInfoModal();
     }
 
-    // On force l'application à démarrer le tuto sur la page d'acceuil
+    // On force l'application à démarrer le tuto sur la page d'accueil
     if (typeof window.navigateToPage === 'function') {
         window.navigateToPage('home');
     }
@@ -35,15 +35,14 @@ window.startInteractiveTutorial = () => {
                 popover: { 
                     title: '1. Module de Détermination', 
                     description: 'Nous allons commencer par le module Déterminer. <b>Cliquez sur Suivant pour y aller.</b>',
-                    side: "bottom"
-                },
-                onNextClick: () => {
-                    // On change d'onglet
-                    window.navigateToPage('determine');
-                    // On demande à Driver d'attendre 500ms (le temps de l'animation)
-                    setTimeout(() => {
-                        driverObj.moveNext();
-                    }, 500);
+                    side: "bottom",
+                    // CORRECTION : onNextClick est maintenant DANS le popover
+                    onNextClick: () => {
+                        window.navigateToPage('determine'); // On change d'onglet
+                        setTimeout(() => {
+                            driverObj.moveNext(); // On affiche la bulle suivante après l'animation
+                        }, 600);
+                    }
                 }
             },
 
@@ -86,19 +85,16 @@ window.startInteractiveTutorial = () => {
 
             // --- TRANSITION : DÉTERMINER -> VÉRIFIER ---
             {
-                // On utilise une astuce : on cible un élément toujours présent (comme le body) 
-                // pour faire la transition, au lieu de chercher le bouton du menu
                 popover: { 
                     title: '5. Module de Vérification', 
                     description: 'Une fois la machine choisie, passons à l\'onglet Vérifier pour simuler la manœuvre en détail. <b>Cliquez sur Suivant.</b>',
-                },
-                onNextClick: () => {
-                    // On change d'onglet
-                    window.navigateToPage('verify');
-                    // On attend 500ms que la page "Vérifier" soit bien affichée dans le DOM
-                    setTimeout(() => {
-                        driverObj.moveNext();
-                    }, 500);
+                    // CORRECTION : onNextClick est maintenant DANS le popover
+                    onNextClick: () => {
+                        window.navigateToPage('verify'); // On change d'onglet
+                        setTimeout(() => {
+                            driverObj.moveNext();
+                        }, 600);
+                    }
                 }
             },
 
@@ -181,8 +177,8 @@ window.startInteractiveTutorial = () => {
     });
 
     // On lance le tutoriel ! (Il commence obligatoirement par la page d'acceuil grâce au code au début de la fonction)
-    // On attend 100ms pour être sûr que la page Déterminer est bien affichée
+    // Lancement du tutoriel (avec un petit délai pour s'assurer que la page d'accueil est bien montée)
     setTimeout(() => {
         driverObj.drive();
-    }, 100);
+    }, 200);
 };
