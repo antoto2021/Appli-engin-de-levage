@@ -46,16 +46,80 @@ const HomePage = ({ navigate }) => (
 
 const App = () => {
     const [page, setPage] = useState('home');
-    const [localMachines, setLocalMachines] = useState([]); const [externalMachines, setExternalMachines] = useState([]);
+    const [localMachines, setLocalMachines] = useState([]); 
+    const [externalMachines, setExternalMachines] = useState([]);
 
-    useEffect(() => { const saved = localStorage.getItem(DB_KEY); if (saved) { try { const parsed = JSON.parse(saved); setLocalMachines(parsed.map(m => ({...m, source: 'local'}))); } catch (e) { console.error("Err LocalStorage", e); } } }, []);
-    useEffect(() => { const fetchExternal = async () => { try { const response = await fetch(EXTERNAL_DB_URL); if (!response.ok) throw new Error("Fichier non trouvé"); const data = await response.json(); setExternalMachines(data.map(m => ({...m, source: 'external'}))); } catch (err) { console.warn("Mode dégradé"); } }; fetchExternal(); }, []);
-    const allMachines = useMemo(() => { return [...externalMachines, ...localMachines]; }, [externalMachines, localMachines]);
+    // --- AJOUT POUR LE TUTORIEL INTERACTIF (POINT 2) ---
+    useEffect(() => {
+        // On attache la fonction au window pour que Driver.js puisse l'appeler
+        window.navigateToPage = (pageName) => {
+            setPage(pageName);
+        };
+        
+        // Sécurité React : on nettoie si le composant est détruit
+        return () => {
+            delete window.navigateToPage;
+        };
+    }, []); 
+   
+    useEffect(() => { 
+        const saved = localStorage.getItem(DB_KEY); 
+        if (saved) { 
+            try { 
+                const parsed = JSON.parse(saved); 
+                setLocalMachines(parsed.map(m => ({...m, source: 'local'}))); 
+            } catch (e) { 
+                console.error("Err LocalStorage", e); 
+            } 
+        } 
+    }, []);
 
-    const saveLocal = (newMachines) => { const updated = [...localMachines, ...newMachines.map(m => ({...m, source: 'local'}))]; setLocalMachines(updated); localStorage.setItem(DB_KEY, JSON.stringify(updated)); };
-    const deleteLocal = (id) => { if(confirm("Supprimer cette machine locale ?")) { const updated = localMachines.filter(m => m.id !== id); setLocalMachines(updated); localStorage.setItem(DB_KEY, JSON.stringify(updated)); } };
-    const resetLocal = () => { if(confirm("Effacer TOUTES les machines locales ?")) { setLocalMachines([]); localStorage.setItem(DB_KEY, JSON.stringify([])); } };
-    const importLocal = (imported) => { if(confirm(`Importer ${imported.length} machines ? Cela REMPLACE la base locale.`)) { const marked = imported.map(m => ({...m, source: 'local'})); setLocalMachines(marked); localStorage.setItem(DB_KEY, JSON.stringify(marked)); } }
+    useEffect(() => { 
+        const fetchExternal = async () => { 
+            try { 
+                const response = await fetch(EXTERNAL_DB_URL); 
+                if (!response.ok) throw new Error("Fichier non trouvé"); 
+                const data = await response.json(); 
+                setExternalMachines(data.map(m => ({...m, source: 'external'}))); 
+            } catch (err) { 
+                console.warn("Mode dégradé"); 
+            } 
+        }; 
+        fetchExternal(); 
+    }, []);
+
+    const allMachines = useMemo(() => { 
+        return [...externalMachines, ...localMachines]; 
+    }, [externalMachines, localMachines]);
+
+    const saveLocal = (newMachines) => { 
+        const updated = [...localMachines, ...newMachines.map(m => ({...m, source: 'local'}))]; 
+        setLocalMachines(updated); 
+        localStorage.setItem(DB_KEY, JSON.stringify(updated)); 
+    };
+
+    const deleteLocal = (id) => { 
+        if(confirm("Supprimer cette machine locale ?")) { 
+            const updated = localMachines.filter(m => m.id !== id); 
+            setLocalMachines(updated); 
+            localStorage.setItem(DB_KEY, JSON.stringify(updated)); 
+        } 
+    };
+
+    const resetLocal = () => { 
+        if(confirm("Effacer TOUTES les machines locales ?")) { 
+            setLocalMachines([]); 
+            localStorage.setItem(DB_KEY, JSON.stringify([])); 
+        } 
+    };
+
+    const importLocal = (imported) => { 
+        if(confirm(`Importer ${imported.length} machines ? Cela REMPLACE la base locale.`)) { 
+            const marked = imported.map(m => ({...m, source: 'local'})); 
+            setLocalMachines(marked); 
+            localStorage.setItem(DB_KEY, JSON.stringify(marked)); 
+        } 
+    }
 
     return (
         <div className="min-h-screen">
