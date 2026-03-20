@@ -82,9 +82,18 @@ window.startInteractiveTutorial = () => {
                     title: '7. Rapport officiel', 
                     description: 'Une fois la configuration validée, cliquez ici pour générer un rapport PDF de pré-dimensionnement pour le bureau des méthodes.', 
                     side: "top", 
-                    align: 'start' 
+                    align: 'center' 
                 } 
-            }
+            },
+            { 
+                element: '#tour-Abaque-Excel', 
+                popover: { 
+                    title: '8. Abaque Excel', 
+                    description: 'Si vous souhaitez obtenir des informations détailles sur les capacités de levage de l\'engin vous pouvez télécharger son abaque au format Excel.', 
+                    side: "top", 
+                    align: 'center' 
+                } 
+            },
         ]
     });
 
