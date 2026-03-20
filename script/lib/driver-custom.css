@@ -1,0 +1,54 @@
+/* Personnalisation de la bulle Driver.js pour ressembler à un vrai guide interactif */
+
+.driver-popover {
+    border-radius: 12px !important; /* Coins bien arrondis */
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3) !important; /* Belle ombre portée */
+    padding: 20px !important;
+    border: none !important;
+    max-width: 320px !important;
+}
+
+/* Le titre de la bulle (aux couleurs de SafeHoist) */
+.driver-popover-title {
+    color: #004e98 !important;
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    margin-bottom: 8px !important;
+}
+
+/* Le texte explicatif */
+.driver-popover-description {
+    color: #334155 !important; /* text-slate-700 */
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+}
+
+/* Personnalisation des boutons */
+.driver-popover-footer button {
+    border-radius: 6px !important;
+    font-weight: bold !important;
+    padding: 6px 12px !important;
+    text-shadow: none !important;
+}
+
+/* Bouton Suivant / Compris */
+.driver-popover-next-btn {
+    background-color: #004e98 !important;
+    color: white !important;
+    border: none !important;
+}
+.driver-popover-next-btn:hover {
+    background-color: #003a73 !important;
+}
+
+/* Bouton Retour */
+.driver-popover-prev-btn {
+    background-color: #f1f5f9 !important; /* text-slate-100 */
+    color: #475569 !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
+/* S'assurer que la flèche (la "queue" de la bulle) est bien visible */
+.driver-popover-arrow {
+    display: block !important;
+}
