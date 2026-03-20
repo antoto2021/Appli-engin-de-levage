@@ -220,7 +220,7 @@ const GraphChart2D = ({ machine, inputDist, inputHeight, selectedBoomLen, select
         const statusFill = !isSafe ? "#ef4444" : (isAngleWarning ? "#fbbf24" : "#22c55e");
 
         return (
-        <div className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
+        <div id="tour-graph" className="w-full overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm relative">
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
                 <defs>
                     <pattern id="grid" width={scaleX(gridStep) - scaleX(0)} height={scaleY(0) - scaleY(gridStep)} patternUnits="userSpaceOnUse">
@@ -396,7 +396,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             // Si on clique sur "Engin Télescopique"
             if (newCat === 'telehandler') {
                 setInputLoad(1000);  // Masse par défaut : 1 tonnes (1000 kg)
-                setInputDist(3);     // Portée par défaut : 3 m
+                setInputDist(2);     // Portée par défaut : 3 m
                 setInputHeight(2);   // Hauteur par défaut : 2 m
             } 
             // Si on clique sur "Grue Mobile" ou "Grue Treillis"
@@ -696,7 +696,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 />
             )}
 
-            <div className="flex flex-wrap justify-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+            <div id="tour-category-select" className="flex flex-wrap justify-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
                 {[{id: 'telehandler', label: 'Engin Télescopique', icon: Truck}, {id: 'mobile_crane', label: 'Grue Mobile', icon: Move}, {id: 'crawler_crane', label: 'Grue Treillis', icon: Anchor}].map(cat => ( 
                     <button 
                         key={cat.id} 
@@ -726,7 +726,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         {machine && (
                             <div className="flex gap-2 mb-4">
                                 <button onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque.xlsx</button>
-                                <button onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Prédimensionnement</button>
+                                <button id="tour-pdf-btn" onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Prédimensionnement</button>
                             </div>
                         )}
                         <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
@@ -738,7 +738,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         </div>
                     </div>
                     
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div id="tour-sliders" className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Calcul d'Adéquation</h3>
                         <div className="space-y-6">
                             
