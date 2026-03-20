@@ -816,8 +816,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     </div>
 
                     {machine && machine.mode === 'multi_chart' && (
-                        {/* BLOC CONFIGURATION RECOMMANDÉE RESPONSIVE */}
                         <div id="tour-Configuration" className="flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-6 bg-slate-50 border-l-4 border-[#004e98] p-3 lg:p-4 rounded-r-xl shadow-sm mb-6">
+                            {/* BLOC CONFIGURATION RECOMMANDÉE RESPONSIVE (Le commentaire doit être à l'intérieur du div) */}
                             
                             {/* Partie gauche : Icône + Texte */}
                             <div className="flex items-center gap-3 w-full lg:w-auto">
@@ -829,7 +829,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     <p className="text-xs text-slate-500">L'algorithme a ajusté la grue pour ce levage.</p>
                                 </div>
                             </div>
-                        
+                    
                             {/* Partie droite : Les 3 bulles en grille sur mobile, en ligne sur PC */}
                             <div className="grid grid-cols-3 lg:flex gap-2 w-full lg:w-auto lg:ml-auto">
                                 
@@ -840,7 +840,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                         {machine?.recommendedBoom || '0'} m
                                     </span>
                                 </div>
-                        
+                    
                                 {/* Bulle Contrepoids */}
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Contrepoids</span>
@@ -848,7 +848,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                         {machine?.recommendedCwt || '0'} t
                                     </span>
                                 </div>
-                        
+                    
                                 {/* Bulle Moufle */}
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Moufle</span>
@@ -856,12 +856,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                         {machine?.recommendedMoufle || '0'} t
                                     </span>
                                 </div>
-                        
+                    
                             </div>
                         </div>
-
                     )}
-
                     <GraphChart2D 
                         machine={machine}
                         inputDist={inputDist}
