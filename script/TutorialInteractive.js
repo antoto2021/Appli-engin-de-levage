@@ -25,16 +25,25 @@ window.startInteractiveTutorial = () => {
             { 
                 element: '#tour-category-select', 
                 popover: { 
-                    title: '1. Choix de l\'engin', 
+                    title: '1. Catégorie d\'engin', 
                     description: 'Commencez par sélectionner la famille de la machine (Télescopique, Grue Mobile...).', 
                     side: "bottom", 
                     align: 'start' 
                 } 
             },
             { 
+                element: '#tour-BDD', 
+                popover: { 
+                    title: "2. Choix de l'engin", 
+                    description: "Cherchez votre engin dans la liste déroulante.",
+                    side: "right",
+                    align: 'start'
+                } 
+            },
+            { 
                 element: '#tour-sliders', 
                 popover: { 
-                    title: '2. Paramètres du levage', 
+                    title: '3. Paramètres du levage', 
                     description: 'Ajustez la masse, la portée et la hauteur requises pour votre opération.', 
                     side: "right", 
                     align: 'start' 
@@ -43,7 +52,7 @@ window.startInteractiveTutorial = () => {
             { 
                 element: '#tour-graph', 
                 popover: { 
-                    title: '3. Vérification visuelle', 
+                    title: '4. Vérification visuelle', 
                     description: 'Le graphique se met à jour en temps réel. Le point vert indique que vous êtes en sécurité. S\'il devient rouge, l\'opération est interdite !', 
                     side: "left", 
                     align: 'start' 
@@ -52,7 +61,7 @@ window.startInteractiveTutorial = () => {
             { 
                 element: '#tour-Configuration', 
                 popover: { 
-                    title: '4. Configuration recommandée', 
+                    title: '5. Configuration recommandée', 
                     description: "La configuration de l'engin est indiquée automatiquement.",
                     side: "left",
                     align: 'start'
@@ -61,7 +70,7 @@ window.startInteractiveTutorial = () => {
             { 
                 element: '#tour-pdf-btn', 
                 popover: { 
-                    title: '5. Rapport officiel', 
+                    title: '6. Rapport officiel', 
                     description: 'Une fois la configuration validée, cliquez ici pour générer un rapport PDF de pré-dimensionnement pour le bureau des méthodes.', 
                     side: "top", 
                     align: 'start' 
