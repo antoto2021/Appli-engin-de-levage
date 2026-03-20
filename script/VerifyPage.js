@@ -816,7 +816,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     </div>
 
                     {machine && machine.mode === 'multi_chart' && (
-                        <div className="bg-white border-l-4 border-l-[#004e98] border-y border-r border-slate-200 rounded-r-xl p-4 flex items-center justify-between shadow-sm animate-fade-in">
+                        <div id="tour-Configuration" className="bg-white border-l-4 border-l-[#004e98] border-y border-r border-slate-200 rounded-r-xl p-4 flex items-center justify-between shadow-sm animate-fade-in">
                             <div className="flex items-center gap-3">
                                 <div className="bg-blue-50 p-2 rounded-full text-[#004e98]"><Layers size={24} /></div>
                                 <div>
