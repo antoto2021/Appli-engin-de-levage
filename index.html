@@ -220,6 +220,44 @@
                 </div>
             </section>
 
+            <section class="border-t border-slate-200 pt-8 mt-8">
+                <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    🔒 Espace Administrateur
+                </h3>
+                
+                <div id="admin-login" class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                    <p class="text-sm text-slate-600 mb-4">Saisissez le code PIN pour gérer la base de données de l'application.</p>
+                    <div class="flex justify-center gap-2">
+                        <input type="password" id="admin-pin" class="border border-slate-300 rounded-lg p-2 text-center w-32 tracking-widest font-black text-xl outline-none focus:border-[#004e98]" placeholder="****" maxlength="4">
+                        <button onclick="checkAdminPin()" class="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-900 transition">Valider</button>
+                    </div>
+                    <p id="admin-error" class="text-red-500 text-xs font-bold mt-3 hidden">Code PIN incorrect</p>
+                </div>
+
+                <div id="admin-panel" class="hidden bg-white p-6 rounded-xl border-2 border-[#004e98] shadow-md">
+                    <div class="flex justify-between items-center mb-4 border-b pb-2">
+                        <h4 class="font-black text-[#004e98]">Gestion des Abaques (Import Excel)</h4>
+                        <button onclick="downloadAdminTemplate()" class="text-xs font-bold text-slate-500 hover:text-blue-600 underline">📥 Télécharger le modèle Excel</button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">1. Catégorie de l'engin</label>
+                            <select id="admin-category" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-slate-50 outline-none">
+                                <option value="mobile_crane">Grue Mobile</option>
+                                <option value="telehandler">Engin Télescopique</option>
+                                <option value="crawler_crane">Grue Treillis</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">2. Fichier Excel (.xlsx)</label>
+                            <input type="file" accept=".xlsx,.xls" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-[#004e98] file:text-white hover:file:bg-blue-800 cursor-pointer" onchange="handleAdminExcelUpload(event)" />
+                        </div>
+                    </div>
+                    <div id="admin-upload-status" class="mt-4 text-sm font-bold text-center"></div>
+                </div>
+            </section>
+
         </div>
     </div>
 </div>
