@@ -368,12 +368,21 @@ function closeDataModal() {
 }
 
 async function loadGitHubHistory() {
+    // Liste exhaustive des 13 fichiers cœur de l'application
     const FILES_TO_TRACK = [
-        { path: 'index.html', name: 'Interface Principale (HTML)' },
-        { path: 'script/app.js', name: 'Moteur Principal (app.js)' },
-        { path: 'script/utils.js', name: 'Moteur de Calcul (utils.js)' },
-        { path: 'script/VerifyPage.js', name: 'Module Vérifier' },
-        { path: 'script/DeterminePage.js', name: 'Module Déterminer' }
+        { path: 'index.html', name: 'Interface Racine (HTML)' },
+        { path: 'style.css', name: 'Styles Globaux (CSS)' },
+        { path: 'engines.json', name: 'Base de Données (JSON)' },
+        { path: 'script/app.js', name: 'Moteur Logiciel (React)' },
+        { path: 'script/utils.js', name: 'Algorithmes de Calcul' },
+        { path: 'script/VerifyPage.js', name: 'Module de Vérification' },
+        { path: 'script/DeterminePage.js', name: 'Module de Détermination' },
+        { path: 'script/pdfGenerator.js', name: 'Générateur de Rapports' },
+        { path: 'script/TutorialInteractive.js', name: 'Guide Interactif' },
+        { path: 'script/icons.js', name: 'Composants Graphiques' },
+        { path: 'script/lib/driver.js', name: 'Librairie Driver.js' },
+        { path: 'script/lib/driver.css', name: 'Styles Driver.js' },
+        { path: 'script/lib/driver-custom.css', name: 'Customisation Tutoriel' }
     ];
 
     const tbody = document.getElementById('history-tbody');
@@ -382,14 +391,13 @@ async function loadGitHubHistory() {
 
     for (const file of FILES_TO_TRACK) {
         try {
+            // Requête optimisée (1 seul commit retourné)
             const baseUrl = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/commits?path=${file.path}&per_page=1`;
             
-            // Dernier commit
             const lastRes = await fetch(baseUrl);
             const lastData = await lastRes.json();
             const lastDate = lastData[0]?.commit.author.date;
 
-            // Premier commit (pagination)
             const linkHeader = lastRes.headers.get('Link');
             let firstDate = lastDate;
 
@@ -403,7 +411,7 @@ async function loadGitHubHistory() {
             const formatStr = (dStr) => dStr ? new Date(dStr).toLocaleDateString('fr-FR') : '---';
 
             const row = `
-                <tr class="hover:bg-slate-50 transition-colors">
+                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
                     <td class="p-3 font-bold text-slate-700">${file.name}</td>
                     <td class="p-3 text-emerald-600 font-medium">${formatStr(firstDate)}</td>
                     <td class="p-3 text-blue-600 font-medium">${formatStr(lastDate)}</td>
@@ -411,10 +419,9 @@ async function loadGitHubHistory() {
             `;
             tbody.insertAdjacentHTML('beforeend', row);
         } catch (e) {
-            tbody.insertAdjacentHTML('beforeend', `<tr><td class="p-3" colspan="3">Erreur de chargement pour ${file.name}</td></tr>`);
+            console.error(`Erreur pour ${file.path}`, e);
         }
     }
-    
     loading.classList.add('hidden');
 }
 
