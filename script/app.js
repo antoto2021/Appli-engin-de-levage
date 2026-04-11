@@ -466,6 +466,124 @@ function renderHistoryTable(data) {
         </tr>
     `).join('');
 }
+
+// ============================================================
+//      ESPACE ADMINISTRATEUR (CODE PIN ET IMPORT EXCEL)
+// ============================================================
+
+window.checkAdminPin = () => {
+    const pin = document.getElementById('admin-pin').value;
+    if (pin === '1234') {
+        document.getElementById('admin-login').classList.add('hidden');
+        document.getElementById('admin-panel').classList.remove('hidden');
+        document.getElementById('admin-pin').value = ''; // On vide par sécurité
+    } else {
+        const err = document.getElementById('admin-error');
+        err.classList.remove('hidden');
+        setTimeout(() => err.classList.add('hidden'), 3000);
+    }
+};
+
+window.downloadAdminTemplate = () => {
+    const wb = XLSX.utils.book_new(); 
+    const sheets = [ { name: "0t", multiplier: 0.5 }, { name: "12t", multiplier: 0.8 }, { name: "24t", multiplier: 1.0 } ]; 
+    const baseData = [ ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], [3, 50, 40, null, null], [10, 20, 18, 15, 12], [30, null, null, 4, 3] ];
+    sheets.forEach(sheet => { 
+        const data = baseData.map((row, i) => { 
+            if (i === 0) return row; 
+            return row.map((cell, j) => { if (j === 0 || cell === null) return cell; return Number((cell * sheet.multiplier).toFixed(1)); }); 
+        }); 
+        const ws = XLSX.utils.aoa_to_sheet(data); 
+        XLSX.utils.book_append_sheet(wb, ws, sheet.name); 
+    }); 
+    XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
+};
+
+window.handleAdminExcelUpload = (e) => {
+    const file = e.target.files[0]; 
+    if (!file) return; 
+    
+    const category = document.getElementById('admin-category').value;
+    const statusEl = document.getElementById('admin-upload-status');
+    statusEl.innerText = "⏳ Traitement en cours...";
+    statusEl.className = "mt-4 text-sm font-bold text-center text-blue-600 animate-pulse";
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+        try {
+            const bstr = evt.target.result; 
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            let isMultiSheet = wb.SheetNames.length > 1; 
+            let useCwtMode = isMultiSheet;
+            
+            if (!useCwtMode) {
+                const firstSheet = wb.SheetNames[0].trim();
+                const isGenericName = /^(sheet|feuille)\d+$/i.test(firstSheet);
+                const looksLikeCwt = /^(\d+(\.\d+)?)[tT]?$/.test(firstSheet);
+                if (!isGenericName && looksLikeCwt) { useCwtMode = true; }
+            }
+
+            let counterweights = []; let charts = {}; let boomLengthsGlobal = new Set(); 
+            let maxLoadFound = 0; let maxReachFound = 0;
+
+            const parseSheet = (sheetName) => {
+                 const ws = wb.Sheets[sheetName]; const data = XLSX.utils.sheet_to_json(ws, { header: 1 }); if(data.length < 2) return null;
+                 const headerRow = data[0]; const colToBoom = {}; const sheetCharts = {};
+                 for (let c = 1; c < headerRow.length; c++) { const val = parseFloat(headerRow[c]); if (!isNaN(val)) { boomLengthsGlobal.add(val); colToBoom[c] = val; sheetCharts[val] = { std: [] }; } }
+                 for (let r = 1; r < data.length; r++) {
+                     const row = data[r]; const radius = parseFloat(row[0]);
+                     if (!isNaN(radius)) {
+                         let hasValidLoad = false;
+                         for (let c = 1; c < row.length; c++) { 
+                             const loadVal = parseFloat(row[c]); 
+                             const boomLen = colToBoom[c]; 
+                             if (boomLen && !isNaN(loadVal)) { 
+                                 sheetCharts[boomLen].std.push({ d: radius, l: loadVal }); 
+                                 if (loadVal > maxLoadFound) maxLoadFound = loadVal; 
+                                 hasValidLoad = true;
+                             } 
+                         }
+                         if (hasValidLoad && radius > maxReachFound) maxReachFound = radius;
+                     }
+                 }
+                 return sheetCharts;
+            };
+
+            if (useCwtMode) { wb.SheetNames.forEach(sheetName => { const cwtData = parseSheet(sheetName); if(cwtData && sheetName.toLowerCase() !== 'moufles') { counterweights.push(sheetName); charts[sheetName] = cwtData; } }); } else { charts = parseSheet(wb.SheetNames[0]); }
+            const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
+            if (boomLengths.length === 0) throw new Error("Aucune colonne de flèche valide trouvée.");
+            
+            let moufles = null;
+            const mouflesSheetName = wb.SheetNames.find(n => n.toLowerCase() === 'moufles');
+            if (mouflesSheetName) {
+                const wsMoufles = wb.Sheets[mouflesSheetName];
+                const dataMoufles = XLSX.utils.sheet_to_json(wsMoufles, { header: 1 });
+                moufles = [];
+                for (let r = 1; r < dataMoufles.length; r++) {
+                    const maxL = parseFloat(dataMoufles[r][0]); const massM = parseFloat(dataMoufles[r][1]);
+                    if (!isNaN(maxL) && !isNaN(massM)) { moufles.push({ maxLoad: maxL, mass: massM }); }
+                }
+                moufles.sort((a, b) => a.maxLoad - b.maxLoad);
+            }
+
+            const newMachine = { id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, boomLengths: boomLengths, charts: charts, moufles: moufles, createdAt: new Date().toISOString(), isCustom: true };
+            
+            // Appel de la fonction React via le pont créé
+            if(window.addGlobalMachine) {
+                window.addGlobalMachine([newMachine]);
+                statusEl.innerText = "✅ Engin importé et sauvegardé avec succès !";
+                statusEl.className = "mt-4 text-sm font-bold text-center text-emerald-600";
+            }
+        } catch (error) { 
+            statusEl.innerText = "❌ Erreur : " + error.message;
+            statusEl.className = "mt-4 text-sm font-bold text-center text-red-600";
+        } finally { 
+            e.target.value = null; 
+        }
+    }; 
+    reader.readAsBinaryString(file);
+};
+    
 // Attachement global pour les appels onclick HTML
 window.forceUpdate = forceUpdate;
 window.checkGitHubUpdates = checkGitHubUpdates;
