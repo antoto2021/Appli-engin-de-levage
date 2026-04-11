@@ -450,7 +450,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     if (tipH < inputHeight) continue; 
 
                     const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
-                    if (cap >= inputLoad - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
+                    if (cap >= totalMass - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
                 }
                 if (found) break; 
             }
@@ -526,10 +526,21 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return Math.floor(maxCap);
     }, [machine, inputDist, inputHeight, selectedTool]);
 
+    // --- NOUVEAU : CALCUL DE LA MASSE TOTALE ---
+    // On récupère la masse de l'accessoire sélectionné (en kg pour le calcul)
+    const accessoryMassKg = useMemo(() => {
+        if (machine?.toolsMass && selectedTool && machine.toolsMass[selectedTool]) {
+            return machine.toolsMass[selectedTool] * 1000;
+        }
+        return 0; // 0 kg si pas d'accessoire
+    }, [machine, selectedTool]);
+
+    // Masse Totale = Masse sur le slider + Masse de l'accessoire
+    const totalMass = inputLoad + accessoryMassKg;
+
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
-    // Correction de la limite pour éviter les sauts brusques
     const sliderMaxMass = absoluteMaxCapAtDist > 0 ? absoluteMaxCapAtDist : Math.max(inputLoad, 1000);
 
     const tipHeight = useMemo(() => {
@@ -543,9 +554,11 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     }, [machine, selectedBoomLen, inputDist]);
 
     const isHeightValid = machine?.mode === 'multi_chart' ? (inputHeight <= tipHeight) : (inputHeight <= machine?.maxHeight);
-    const isLoadSafe = inputLoad <= safeLoad && safeLoad > 0;
+    
+    // ON UTILISE MAINTENANT totalMass AU LIEU DE inputLoad POUR LA SÉCURITÉ
+    const isLoadSafe = totalMass <= safeLoad && safeLoad > 0;
     const isSafe = isLoadSafe && isHeightValid;
-    const usagePercent = safeLoad > 0 ? (inputLoad / safeLoad) * 100 : (inputLoad > 0 ? 110 : 0);
+    const usagePercent = safeLoad > 0 ? (totalMass / safeLoad) * 100 : (totalMass > 0 ? 110 : 0);
 
     const currentStepDist = machine?.category === 'telehandler' ? 0.25 : 0.5;
 
@@ -557,29 +570,20 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return 0;
     }, [machine, selectedCwt, selectedBoomLen]);
 
-    // --- EVALUATION DE L'ANGLE ACTUEL POUR LE BANDEAU ---
-    const currentAngleDeg = useMemo(() => {
-        if (machine?.mode === 'multi_chart' && selectedBoomLen > inputDist) {
-            return Math.acos(inputDist / selectedBoomLen) * (180 / Math.PI);
-        }
-        return 90;
-    }, [machine, inputDist, selectedBoomLen]);
-
-    const isAngleWarning = isSafe && machine?.mode === 'multi_chart' && currentAngleDeg < 45;
-    const currentMoufle = getMoufleForLoad(machine, inputLoad);
+    // --- NOUVEAU : ALERTE > 80% ---
+    const is80PercentWarning = isSafe && usagePercent > 80;
+    const currentMoufle = getMoufleForLoad(machine, totalMass); // On prend la masse totale pour la moufle
 
     // --- GESTION DYNAMIQUE DES MESSAGES ET DES COULEURS ---
     let statusMessage = "Configuration conforme";
     let statusSubMessage = "Le levage peut être effectué en sécurité.";
     
-    // Thème de base (Vert)
     let bannerBg = 'bg-[#ecfdf5]'; let bannerBorder = 'bg-[#10b981]';
     let titleColor = 'text-[#065f46]'; let mainTextColor = 'text-[#047857]'; let subTextColor = 'text-[#065f46]';
     let mainTitle = 'AUTORISÉ'; let badgeBg = 'bg-green-100 text-green-700 border-green-200'; let badgeText = 'ZONE SÉCURISÉE';
     let progressColor = 'bg-[#10b981]';
 
     if (!isSafe) {
-        // Thème Interdit (Rouge)
         bannerBg = 'bg-red-50'; bannerBorder = 'bg-red-500';
         titleColor = 'text-red-800'; mainTextColor = 'text-red-700'; subTextColor = 'text-red-600';
         mainTitle = 'INTERDIT'; badgeBg = 'bg-red-100 text-red-700 border-red-200'; progressColor = 'bg-red-500';
@@ -595,19 +599,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 const targetReach = (isAutoConfig && inputDist < absoluteMinReach) ? absoluteMinReach : currentMinReach;
                 statusSubMessage = `Aucune capacité définie à cette portée. Veuillez augmenter la portée à ${targetReach} m.`;
             } else { statusSubMessage = "Aucune capacité définie à cette portée. Veuillez réduire la portée."; }
-        } else if (inputLoad > safeLoad) {
+        } else if (totalMass > safeLoad) {
             statusMessage = "Capacité dépassée";
             statusSubMessage = `Réduisez la masse (Max autorisé : ${(safeLoad/1000).toFixed(2)} t).`;
         }
-    } else if (isAngleWarning) {
-        // Thème Alerte (Orange)
+    } else if (is80PercentWarning) {
+        // NOUVEAU THÈME ALERTE > 80% (Remplace l'angle)
         bannerBg = 'bg-amber-50'; bannerBorder = 'bg-amber-500';
         titleColor = 'text-amber-800'; mainTextColor = 'text-amber-700'; subTextColor = 'text-amber-600';
-        mainTitle = 'AUTORISÉ (RISQUÉ)'; badgeBg = 'bg-amber-100 text-amber-700 border-amber-200'; progressColor = 'bg-amber-500';
-        badgeText = 'ANGLE FAIBLE';
+        mainTitle = 'AUTORISÉ (ATTENTION)'; badgeBg = 'bg-amber-100 text-amber-700 border-amber-200'; progressColor = 'bg-amber-500';
+        badgeText = 'UTILISATION ÉLEVÉE';
         
-        statusMessage = "Angle de flèche faible (< 45°)";
-        statusSubMessage = "Le levage est couvert par l'abaque, mais l'angle est trop faible, ce qui rend l'opération risquée.";
+        statusMessage = `Taux d'utilisation critique (${Math.round(usagePercent)}%)`;
+        statusSubMessage = `Le levage est couvert par l'abaque (Max: ${(safeLoad/1000).toFixed(2)} t), mais nécessite une attention particulière.`;
     }
     
     return (
@@ -701,6 +705,14 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
                                     <div className="flex justify-between items-center mb-2">
                                         <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
+                                            <div className="flex justify-between items-center bg-slate-100 p-3 rounded-lg border border-slate-200 mt-3 mb-4">
+                                                <span className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                                                    <Anchor size={14} className="text-[#004e98]"/> Masse Totale (Charge + Accessoire)
+                                                </span>
+                                                <span className="text-xl font-black text-slate-800">
+                                                    {(totalMass / 1000).toFixed(2)} <span className="text-sm text-slate-500 font-bold">t</span>
+                                                </span>
+                                            </div>
                                         {machine.mode === 'multi_chart' && (
                                             <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
                                                 {isAutoConfig ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
@@ -786,7 +798,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                             </div>
                     
-                            <div className="grid grid-cols-3 lg:flex gap-2 w-full lg:w-auto lg:ml-auto">
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-2 w-full lg:w-auto lg:ml-auto">
                                 
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Flèche</span>
@@ -806,6 +818,14 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Moufle</span>
                                     <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
                                         {currentMoufle || '0'} t
+                                    </span>
+                                </div>
+
+                                {/* NOUVELLE Bulle Accessoire */}
+                                <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
+                                    <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Accessoire</span>
+                                    <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
+                                        {accessoryMassKg > 0 ? (accessoryMassKg / 1000).toFixed(2) + ' t' : '---'}
                                     </span>
                                 </div>
                     
