@@ -356,9 +356,11 @@ function openDataModal() {
     // Affiche la modale des données
     document.getElementById('data-modal-overlay').classList.remove('hidden');
     
-    // Lance le chargement de l'historique GitHub une seule fois
+    // On ne recharge l'historique que s'il est vide ET que nous ne sommes pas en erreur
     const tbody = document.getElementById('history-tbody');
-    if (tbody.innerHTML.trim() === '') {
+    const isOffline = document.getElementById('info-remote-version').innerText === "Hors ligne";
+
+    if (tbody.innerHTML.trim() === '' && !isOffline) {
         loadGitHubHistory();
     }
 }
@@ -368,8 +370,18 @@ function closeDataModal() {
 }
 
 async function loadGitHubHistory() {
-    // Liste exhaustive des 13 fichiers cœur de l'application
-    // Liste exhaustive des 13 fichiers cœur avec leur nom exact en parenthèses
+    const CACHE_KEY = 'safehoist_github_history';
+    const tbody = document.getElementById('history-tbody');
+    const loading = document.getElementById('history-loading');
+    
+    // 1. Vérifier si nous avons déjà les données en cache
+    const cachedData = localStorage.getItem(CACHE_KEY);
+    if (cachedData) {
+        renderHistoryTable(JSON.parse(cachedData));
+        loading.classList.add('hidden');
+        return; // On s'arrête là, pas besoin d'appeler l'API
+    }
+
     const FILES_TO_TRACK = [
         { path: 'index.html', name: 'Interface Racine (index.html)' },
         { path: 'style.css', name: 'Styles Globaux (style.css)' },
@@ -386,16 +398,21 @@ async function loadGitHubHistory() {
         { path: 'script/lib/driver-custom.css', name: 'Customisation Tutoriel (driver-custom.css)' }
     ];
 
-    const tbody = document.getElementById('history-tbody');
-    const loading = document.getElementById('history-loading');
+    let historyResults = [];
     tbody.innerHTML = '';
 
     for (const file of FILES_TO_TRACK) {
         try {
-            // Requête optimisée (1 seul commit retourné)
             const baseUrl = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/commits?path=${file.path}&per_page=1`;
-            
             const lastRes = await fetch(baseUrl);
+
+            // GESTION DE L'ERREUR 403 (RATE LIMIT)
+            if (lastRes.status === 403) {
+                loading.innerText = "⚠️ Limite API GitHub atteinte (réessayez dans 1h)";
+                loading.classList.remove('animate-pulse');
+                return;
+            }
+
             const lastData = await lastRes.json();
             const lastDate = lastData[0]?.commit.author.date;
 
@@ -409,23 +426,38 @@ async function loadGitHubHistory() {
                 firstDate = firstCommitData[0]?.commit.author.date;
             }
 
-            const formatStr = (dStr) => dStr ? new Date(dStr).toLocaleDateString('fr-FR') : '---';
+            historyResults.push({
+                name: file.name,
+                first: firstDate,
+                last: lastDate
+            });
 
-            const row = `
-                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
-                    <td class="p-3 font-bold text-slate-700">${file.name}</td>
-                    <td class="p-3 text-emerald-600 font-medium">${formatStr(firstDate)}</td>
-                    <td class="p-3 text-blue-600 font-medium">${formatStr(lastDate)}</td>
-                </tr>
-            `;
-            tbody.insertAdjacentHTML('beforeend', row);
         } catch (e) {
             console.error(`Erreur pour ${file.path}`, e);
         }
     }
+
+    // 2. Sauvegarder les résultats pour la prochaine fois
+    localStorage.setItem(CACHE_KEY, JSON.stringify(historyResults));
+    
+    // 3. Afficher le tableau
+    renderHistoryTable(historyResults);
     loading.classList.add('hidden');
 }
 
+// Fonction utilitaire pour dessiner le tableau
+function renderHistoryTable(data) {
+    const tbody = document.getElementById('history-tbody');
+    const formatStr = (dStr) => dStr ? new Date(dStr).toLocaleDateString('fr-FR') : '---';
+    
+    tbody.innerHTML = data.map(item => `
+        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+            <td class="p-3 font-bold text-slate-700">${item.name}</td>
+            <td class="p-3 text-emerald-600 font-medium">${formatStr(item.first)}</td>
+            <td class="p-3 text-blue-600 font-medium">${formatStr(item.last)}</td>
+        </tr>
+    `).join('');
+}
 // Attachement global pour les appels onclick HTML
 window.forceUpdate = forceUpdate;
 window.checkGitHubUpdates = checkGitHubUpdates;
