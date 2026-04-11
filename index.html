@@ -199,21 +199,24 @@
 
             <section>
                 <h3 class="text-lg font-bold text-slate-800 mb-4 border-b pb-2 flex justify-between items-center">
-                    Historique du Code Source (GitHub)
+                    Historique du Code Source
                     <span id="history-loading" class="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded animate-pulse">Synchronisation...</span>
                 </h3>
+                
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <table class="w-full text-sm text-left">
-                        <thead class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
-                            <tr>
-                                <th class="p-3">Fichier / Module</th>
-                                <th class="p-3">Création (1er Commit)</th>
-                                <th class="p-3">Dernière Mise à jour</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-tbody" class="divide-y divide-slate-100">
-                            </tbody>
-                    </table>
+                    <div class="max-h-80 overflow-y-auto">
+                        <table class="w-full text-sm text-left border-collapse">
+                            <thead class="bg-slate-100 text-slate-600 font-bold sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th class="p-3">Fichier / Module</th>
+                                    <th class="p-3">Création (1er Commit)</th>
+                                    <th class="p-3">Dernière Mise à jour</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody" class="divide-y divide-slate-100">
+                                </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
