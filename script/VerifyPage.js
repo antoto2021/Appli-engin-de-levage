@@ -331,8 +331,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [selectedTool, setSelectedTool] = useState(null);
     
     const [isAutoConfig, setIsAutoConfig] = useState(true); 
-    const [isUploading, setIsUploading] = useState(false);
-
+    
     useEffect(() => {
         const autoSelected = localStorage.getItem(SELECTED_CRANE_KEY);
         if (autoSelected) {
@@ -610,77 +609,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         statusMessage = "Angle de flèche faible (< 45°)";
         statusSubMessage = "Le levage est couvert par l'abaque, mais l'angle est trop faible, ce qui rend l'opération risquée.";
     }
-
-    const handleExcelUpload = (e) => { 
-        const file = e.target.files[0]; if (!file) return; setIsUploading(true); const reader = new FileReader();
-        reader.onload = async (evt) => {
-            try {
-                const bstr = evt.target.result; const wb = XLSX.read(bstr, { type: 'binary' });
-                let isMultiSheet = wb.SheetNames.length > 1; let useCwtMode = isMultiSheet;
-                if (!useCwtMode) {
-                    const firstSheet = wb.SheetNames[0].trim();
-                    const isGenericName = /^(sheet|feuille)\d+$/i.test(firstSheet);
-                    const looksLikeCwt = /^(\d+(\.\d+)?)[tT]?$/.test(firstSheet);
-                    if (!isGenericName && looksLikeCwt) { useCwtMode = true; }
-                }
-                let counterweights = []; let charts = {}; let boomLengthsGlobal = new Set(); let maxLoadFound = 0; let maxReachFound = 0;
-                const parseSheet = (sheetName) => {
-                     const ws = wb.Sheets[sheetName]; const data = XLSX.utils.sheet_to_json(ws, { header: 1 }); if(data.length < 2) return null;
-                     const headerRow = data[0]; const colToBoom = {}; const sheetCharts = {};
-                     for (let c = 1; c < headerRow.length; c++) { const val = parseFloat(headerRow[c]); if (!isNaN(val)) { boomLengthsGlobal.add(val); colToBoom[c] = val; sheetCharts[val] = { std: [] }; } }
-                     for (let r = 1; r < data.length; r++) {
-                         const row = data[r]; const radius = parseFloat(row[0]);
-                         if (!isNaN(radius)) {
-                             let hasValidLoad = false;
-                             // NOUVEAU : On vérifie qu'il y a au moins une VRAIE valeur sur cette ligne
-                             for (let c = 1; c < row.length; c++) { 
-                                 const loadVal = parseFloat(row[c]); 
-                                 const boomLen = colToBoom[c]; 
-                                 if (boomLen && !isNaN(loadVal)) { 
-                                     sheetCharts[boomLen].std.push({ d: radius, l: loadVal }); 
-                                     if (loadVal > maxLoadFound) maxLoadFound = loadVal; 
-                                     hasValidLoad = true;
-                                 } 
-                             }
-                             // La portée max n'augmente que si la grue peut lever quelque chose à cette distance
-                             if (hasValidLoad && radius > maxReachFound) maxReachFound = radius;
-                         }
-                     }
-                     return sheetCharts;
-                };
-                if (useCwtMode) { wb.SheetNames.forEach(sheetName => { const cwtData = parseSheet(sheetName); if(cwtData && sheetName.toLowerCase() !== 'moufles') { counterweights.push(sheetName); charts[sheetName] = cwtData; } }); } else { charts = parseSheet(wb.SheetNames[0]); }
-                const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
-                if (boomLengths.length === 0) throw new Error("Aucune colonne de flèche valide trouvée.");
-                
-                // --- NOUVEAU : Lecture de l'onglet Moufles ---
-                let moufles = null;
-                const mouflesSheetName = wb.SheetNames.find(n => n.toLowerCase() === 'moufles');
-                if (mouflesSheetName) {
-                    const wsMoufles = wb.Sheets[mouflesSheetName];
-                    const dataMoufles = XLSX.utils.sheet_to_json(wsMoufles, { header: 1 });
-                    moufles = [];
-                    for (let r = 1; r < dataMoufles.length; r++) { // Saute l'en-tête
-                        const maxL = parseFloat(dataMoufles[r][0]);
-                        const massM = parseFloat(dataMoufles[r][1]);
-                        if (!isNaN(maxL) && !isNaN(massM)) { moufles.push({ maxLoad: maxL, mass: massM }); }
-                    }
-                    moufles.sort((a, b) => a.maxLoad - b.maxLoad); // Tri croissant
-                }
-
-                const newMachine = { id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, boomLengths: boomLengths, charts: charts, moufles: moufles, createdAt: new Date().toISOString(), isCustom: true };
-                onSaveLocal([newMachine]); setSelectedMachineId(newMachine.id); alert("Machine importée !");
-            } catch (error) { alert("Erreur import: " + error.message); } finally { setIsUploading(false); e.target.value = null; }
-        }; reader.readAsBinaryString(file);
-    };
     
-    const downloadTemplate = () => { 
-        const wb = XLSX.utils.book_new(); const sheets = [ { name: "0t", multiplier: 0.5 }, { name: "12t", multiplier: 0.8 }, { name: "24t", multiplier: 1.0 } ]; const baseData = [ ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], [3, 50, 40, null, null], [10, 20, 18, 15, 12], [30, null, null, 4, 3] ];
-        sheets.forEach(sheet => { const data = baseData.map((row, i) => { if (i === 0) return row; return row.map((cell, j) => { if (j === 0 || cell === null) return cell; return Number((cell * sheet.multiplier).toFixed(1)); }); }); const ws = XLSX.utils.aoa_to_sheet(data); XLSX.utils.book_append_sheet(wb, ws, sheet.name); }); XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
-    };
-
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
+            {/* On peut garder le DbManagerModal caché dans le code au cas où, 
+                mais l'appel se fera via l'admin HTML désormais */}
             {showDbManager && <DbManagerModal machines={localMachinesOnly} onClose={() => setShowDbManager(false)} onDelete={onDeleteLocal} onReset={onResetLocal} onImport={onImportLocal}/>}
+            
             {isPredimModalOpen && (
                 <PredimModal 
                     machine={machine}
@@ -709,10 +644,16 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* --- COLONNE DE GAUCHE --- */}
                 <div className="lg:col-span-4 space-y-6">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-[#004e98]"></div>
-                        <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Truck size={18} className="text-[#004e98]"/> Choix de l'engin</h3><button onClick={() => setShowDbManager(true)} className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded hover:bg-slate-200 flex items-center gap-1"><Database size={12}/> Gérer Locale</button></div>
+                        
+                        {/* CORRECTION : Suppression du bouton "Gérer Locale" pour protéger la BDD */}
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Truck size={18} className="text-[#004e98]"/> Choix de l'engin</h3>
+                        </div>
+                        
                         <div id="tour-BDD" className="mb-4">
                             <label className="block text-xs font-bold text-slate-500 mb-1">Sélectionner dans la BDD</label>
                             <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
@@ -723,19 +664,29 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     ))}
                             </select>
                         </div>
+                        
                         {machine && (
                             <div className="flex gap-2 mb-4">
                                 <button id="tour-Abaque-Excel" onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque.xlsx</button>
                                 <button id="tour-pdf-btn" onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Prédimensionnement</button>
                             </div>
                         )}
-                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                            <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-blue-800 flex items-center gap-1"><Database size={12}/> Import Fichier Spécifique</span><button onClick={downloadTemplate} className="text-[10px] text-blue-600 underline flex items-center gap-1 hover:text-blue-800"><Download size={10}/> Modèle Multi-Onglet</button></div>
-                            <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-blue-200 border-dashed rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
-                                {isUploading ? <span className="text-xs font-bold text-blue-600 animate-pulse">Traitement...</span> : ( <> <Upload size={20} className="text-blue-400 mb-1" /> <span className="text-[10px] text-blue-500 font-semibold">Glisser fichier Excel</span> </> )}
-                                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelUpload} disabled={isUploading} />
-                            </label>
-                        </div>
+                        
+                        {/* CORRECTION : Placement du NOUVEAU BOUTON FICHE TECHNIQUE ici ! */}
+                        {machine && (
+                            <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 flex flex-col items-center justify-center gap-3">
+                                <div className="flex items-center gap-2 text-slate-700">
+                                    <FileText size={18} className="text-[#004e98]"/>
+                                    <span className="text-sm font-bold">Documentation Constructeur</span>
+                                </div>
+                                <button 
+                                    onClick={() => alert("La fiche PDF de " + machine.name + " s'ouvrira ici. (Sera connecté au Sprint 4)")}
+                                    className="w-full bg-white hover:bg-slate-100 text-[#004e98] font-bold py-2 px-4 rounded-lg border border-slate-300 shadow-sm transition flex items-center justify-center gap-2"
+                                >
+                                    <Download size={16} /> Fiche Technique (PDF)
+                                </button>
+                            </div>
+                        )}
                     </div>
                     
                     <div id="tour-sliders" className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -793,6 +744,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     </div>
                 </div>
                 
+                {/* --- COLONNE DE DROITE (Graphique et Statut) --- */}
                 <div className="lg:col-span-8 space-y-6">
                     <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row ${bannerBg}`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-3 ${bannerBorder}`}></div>
@@ -818,7 +770,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     {machine && machine.mode === 'multi_chart' && (
                         <div id="tour-Configuration" className={`flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-6 bg-slate-50 border-l-4 p-3 lg:p-4 rounded-r-xl shadow-sm mb-6 transition-colors ${isAutoConfig ? 'border-[#004e98]' : 'border-slate-400'}`}>
                             
-                            {/* Partie gauche : Icône + Texte */}
                             <div className="flex items-center gap-3 w-full lg:w-auto">
                                 <div className={`bg-white p-2 rounded-full shadow-sm transition-colors ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-500'}`}>
                                     <Layers size={20} />
@@ -835,10 +786,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </div>
                             </div>
                     
-                            {/* Partie droite : Les 3 bulles en grille sur mobile, en ligne sur PC */}
                             <div className="grid grid-cols-3 lg:flex gap-2 w-full lg:w-auto lg:ml-auto">
                                 
-                                {/* Bulle Flèche */}
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Flèche</span>
                                     <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
@@ -846,7 +795,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     </span>
                                 </div>
                     
-                                {/* Bulle Contrepoids */}
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Contrepoids</span>
                                     <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
@@ -854,7 +802,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     </span>
                                 </div>
                     
-                                {/* Bulle Moufle */}
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
                                     <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Moufle</span>
                                     <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
