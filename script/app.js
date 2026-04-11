@@ -98,6 +98,14 @@ const App = () => {
         localStorage.setItem(DB_KEY, JSON.stringify(updated)); 
     };
 
+    // PONT POUR L'ESPACE ADMIN (VANILLA JS -> REACT)
+    useEffect(() => {
+        window.addGlobalMachine = (newMachines) => {
+            saveLocal(newMachines);
+        };
+        return () => delete window.addGlobalMachine;
+    }, [localMachines]);
+
     const deleteLocal = (id) => { 
         if(confirm("Supprimer cette machine locale ?")) { 
             const updated = localMachines.filter(m => m.id !== id); 
