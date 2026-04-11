@@ -369,20 +369,21 @@ function closeDataModal() {
 
 async function loadGitHubHistory() {
     // Liste exhaustive des 13 fichiers cœur de l'application
+    // Liste exhaustive des 13 fichiers cœur avec leur nom exact en parenthèses
     const FILES_TO_TRACK = [
-        { path: 'index.html', name: 'Interface Racine (HTML)' },
-        { path: 'style.css', name: 'Styles Globaux (CSS)' },
-        { path: 'engines.json', name: 'Base de Données (JSON)' },
-        { path: 'script/app.js', name: 'Moteur Logiciel (React)' },
-        { path: 'script/utils.js', name: 'Algorithmes de Calcul' },
-        { path: 'script/VerifyPage.js', name: 'Module de Vérification' },
-        { path: 'script/DeterminePage.js', name: 'Module de Détermination' },
-        { path: 'script/pdfGenerator.js', name: 'Générateur de Rapports' },
-        { path: 'script/TutorialInteractive.js', name: 'Guide Interactif' },
-        { path: 'script/icons.js', name: 'Composants Graphiques' },
-        { path: 'script/lib/driver.js', name: 'Librairie Driver.js' },
-        { path: 'script/lib/driver.css', name: 'Styles Driver.js' },
-        { path: 'script/lib/driver-custom.css', name: 'Customisation Tutoriel' }
+        { path: 'index.html', name: 'Interface Racine (index.html)' },
+        { path: 'style.css', name: 'Styles Globaux (style.css)' },
+        { path: 'engines.json', name: 'Base de Données (engines.json)' },
+        { path: 'script/app.js', name: 'Moteur Logiciel (app.js)' },
+        { path: 'script/utils.js', name: 'Algorithmes de Calcul (utils.js)' },
+        { path: 'script/VerifyPage.js', name: 'Module de Vérification (VerifyPage.js)' },
+        { path: 'script/DeterminePage.js', name: 'Module de Détermination (DeterminePage.js)' },
+        { path: 'script/pdfGenerator.js', name: 'Générateur de Rapports (pdfGenerator.js)' },
+        { path: 'script/TutorialInteractive.js', name: 'Guide Interactif (TutorialInteractive.js)' },
+        { path: 'script/icons.js', name: 'Composants Graphiques (icons.js)' },
+        { path: 'script/lib/driver.js', name: 'Librairie Tutoriel (driver.js)' },
+        { path: 'script/lib/driver.css', name: 'Styles Tutoriel (driver.css)' },
+        { path: 'script/lib/driver-custom.css', name: 'Customisation Tutoriel (driver-custom.css)' }
     ];
 
     const tbody = document.getElementById('history-tbody');
