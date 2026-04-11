@@ -487,6 +487,7 @@ window.checkAdminPin = () => {
         err.classList.remove('hidden');
         setTimeout(() => err.classList.add('hidden'), 3000);
     }
+    if(window.refreshAdminPanel) window.refreshAdminPanel();
 };
 
 // --- ACTUALISATION DU PANNEAU ADMIN ---
@@ -628,6 +629,7 @@ window.handleAdminExcelUpload = (e) => {
             // Appel de la fonction React via le pont créé
             if(window.addGlobalMachine) {
                 window.addGlobalMachine([newMachine]);
+                setTimeout(() => window.refreshAdminPanel(), 100);
                 statusEl.innerText = "✅ Engin importé et sauvegardé avec succès !";
                 statusEl.className = "mt-4 text-sm font-bold text-center text-emerald-600";
             }
