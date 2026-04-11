@@ -345,6 +345,79 @@ document.getElementById('wn-overlay').addEventListener('click', function(e) {
     if (e.target === this) closePopup();
 });
 
+// --- GESTION DU TABLEAU DE BORD (ANALYTICS & HISTORIQUE) ---
+
+function openDataModal() {
+    // Ferme la modale "Infos Application" si elle est ouverte
+    if (typeof window.closeInfoModal === 'function') {
+        window.closeInfoModal();
+    }
+    
+    // Affiche la modale des données
+    document.getElementById('data-modal-overlay').classList.remove('hidden');
+    
+    // Lance le chargement de l'historique GitHub une seule fois
+    const tbody = document.getElementById('history-tbody');
+    if (tbody.innerHTML.trim() === '') {
+        loadGitHubHistory();
+    }
+}
+
+function closeDataModal() {
+    document.getElementById('data-modal-overlay').classList.add('hidden');
+}
+
+async function loadGitHubHistory() {
+    const FILES_TO_TRACK = [
+        { path: 'index.html', name: 'Interface Principale (HTML)' },
+        { path: 'script/app.js', name: 'Moteur Principal (app.js)' },
+        { path: 'script/utils.js', name: 'Moteur de Calcul (utils.js)' },
+        { path: 'script/VerifyPage.js', name: 'Module Vérifier' },
+        { path: 'script/DeterminePage.js', name: 'Module Déterminer' }
+    ];
+
+    const tbody = document.getElementById('history-tbody');
+    const loading = document.getElementById('history-loading');
+    tbody.innerHTML = '';
+
+    for (const file of FILES_TO_TRACK) {
+        try {
+            const baseUrl = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/commits?path=${file.path}&per_page=1`;
+            
+            // Dernier commit
+            const lastRes = await fetch(baseUrl);
+            const lastData = await lastRes.json();
+            const lastDate = lastData[0]?.commit.author.date;
+
+            // Premier commit (pagination)
+            const linkHeader = lastRes.headers.get('Link');
+            let firstDate = lastDate;
+
+            if (linkHeader && linkHeader.includes('rel="last"')) {
+                const lastPageUrl = linkHeader.split(',').find(s => s.includes('rel="last"')).match(/<(.*)>/)[1];
+                const firstCommitRes = await fetch(lastPageUrl);
+                const firstCommitData = await firstCommitRes.json();
+                firstDate = firstCommitData[0]?.commit.author.date;
+            }
+
+            const formatStr = (dStr) => dStr ? new Date(dStr).toLocaleDateString('fr-FR') : '---';
+
+            const row = `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="p-3 font-bold text-slate-700">${file.name}</td>
+                    <td class="p-3 text-emerald-600 font-medium">${formatStr(firstDate)}</td>
+                    <td class="p-3 text-blue-600 font-medium">${formatStr(lastDate)}</td>
+                </tr>
+            `;
+            tbody.insertAdjacentHTML('beforeend', row);
+        } catch (e) {
+            tbody.insertAdjacentHTML('beforeend', `<tr><td class="p-3" colspan="3">Erreur de chargement pour ${file.name}</td></tr>`);
+        }
+    }
+    
+    loading.classList.add('hidden');
+}
+
 // Attachement global pour les appels onclick HTML
 window.forceUpdate = forceUpdate;
 window.checkGitHubUpdates = checkGitHubUpdates;
@@ -354,3 +427,5 @@ window.openTutorial = openTutorial;
 window.closePopup = closePopup;
 window.nextSlide = nextSlide;
 window.openInfoModal = openInfoModal;
+window.openDataModal = openDataModal;
+window.closeDataModal = closeDataModal;
