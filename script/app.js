@@ -98,13 +98,18 @@ const App = () => {
         localStorage.setItem(DB_KEY, JSON.stringify(updated)); 
     };
 
-    // PONT POUR L'ESPACE ADMIN (VANILLA JS -> REACT)
+    // PONT POUR L'ESPACE ADMIN (VANILLA JS <-> REACT)
     useEffect(() => {
-        window.addGlobalMachine = (newMachines) => {
-            saveLocal(newMachines);
+        window.addGlobalMachine = (newMachines) => { saveLocal(newMachines); };
+        window.deleteGlobalMachine = (id) => { deleteLocal(id); }; // Permet la suppression
+        window.getGlobalMachines = () => { return allMachines; };  // Permet de lire toute la BDD
+
+        return () => {
+            delete window.addGlobalMachine;
+            delete window.deleteGlobalMachine;
+            delete window.getGlobalMachines;
         };
-        return () => delete window.addGlobalMachine;
-    }, [localMachines]);
+    }, [allMachines, localMachines]); // On met à jour le pont si la BDD change
 
     const deleteLocal = (id) => { 
         if(confirm("Supprimer cette machine locale ?")) { 
@@ -481,6 +486,58 @@ window.checkAdminPin = () => {
         const err = document.getElementById('admin-error');
         err.classList.remove('hidden');
         setTimeout(() => err.classList.add('hidden'), 3000);
+    }
+};
+
+// --- ACTUALISATION DU PANNEAU ADMIN ---
+window.refreshAdminPanel = () => {
+    if (!window.getGlobalMachines) return; // Sécurité
+
+    const allMachines = window.getGlobalMachines();
+    
+    // 1. Mise à jour des compteurs (Statistiques)
+    let countGM = 0, countMT = 0, countGT = 0;
+    allMachines.forEach(m => {
+        if (m.category === 'mobile_crane') countGM++;
+        else if (m.category === 'telehandler') countMT++;
+        else if (m.category === 'crawler_crane') countGT++;
+    });
+
+    document.getElementById('stat-gm').innerText = countGM;
+    document.getElementById('stat-mt').innerText = countMT;
+    document.getElementById('stat-gt').innerText = countGT;
+
+    // 2. Mise à jour du tableau des machines locales (pour suppression)
+    const localMachines = allMachines.filter(m => m.source === 'local');
+    const tbody = document.getElementById('admin-local-machines');
+    
+    if (localMachines.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-slate-400 italic">Aucune machine locale importée.</td></tr>';
+    } else {
+        tbody.innerHTML = localMachines.map(m => `
+            <tr class="hover:bg-slate-50">
+                <td class="p-2 font-bold text-slate-700">
+                    ${m.name} 
+                    <span class="text-[9px] font-normal text-slate-400 block">
+                        ${m.category === 'telehandler' ? 'Télescopique' : m.category === 'mobile_crane' ? 'Grue Mobile' : 'Treillis'}
+                    </span>
+                </td>
+                <td class="p-2 text-right align-middle">
+                    <button onclick="deleteMachineFromAdmin('${m.id}')" class="text-red-500 hover:bg-red-50 px-2 py-1 rounded transition font-bold border border-red-100">Supprimer</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+};
+
+// --- FONCTION DE SUPPRESSION ---
+window.deleteMachineFromAdmin = (id) => {
+    if (window.deleteGlobalMachine) {
+        // La fonction React gère déjà la demande de confirmation (confirm())
+        window.deleteGlobalMachine(id);
+        
+        // On laisse à React 100ms pour mettre à jour son State, puis on rafraîchit le panneau Admin
+        setTimeout(() => window.refreshAdminPanel(), 100);
     }
 };
 
