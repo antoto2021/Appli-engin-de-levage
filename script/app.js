@@ -624,25 +624,7 @@ window.handleAdminExcelUpload = (e) => {
                 moufles.sort((a, b) => a.maxLoad - b.maxLoad);
             }
 
-            // --- NOUVEAU : Lecture de l'onglet Accessoires ---
-            let tools = [];
-            let toolsMass = {};
-            const accessoiresSheetName = wb.SheetNames.find(n => n.toLowerCase() === 'accessoires' || n.toLowerCase() === 'outils');
-            
-            if (accessoiresSheetName) {
-                const wsAccessoires = wb.Sheets[accessoiresSheetName];
-                const dataAccessoires = XLSX.utils.sheet_to_json(wsAccessoires, { header: 1 });
-                for (let r = 1; r < dataAccessoires.length; r++) {
-                    const toolName = dataAccessoires[r][0];
-                    const toolMassT = parseFloat(dataAccessoires[r][1]);
-                    if (toolName && !isNaN(toolMassT)) { 
-                        tools.push(toolName.toString());
-                        toolsMass[toolName.toString()] = toolMassT; // Masse en tonnes
-                    }
-                }
-            }
-
-            // --- NOUVEAU : Lecture de l'onglet Accessoires ---
+            // --- LECTURE DES ACCESSOIRES (UNE SEULE FOIS) ---
             let tools = [];
             let toolsMass = {};
             const accessoiresSheetName = wb.SheetNames.find(n => n.toLowerCase() === 'accessoires' || n.toLowerCase() === 'outils');
@@ -660,7 +642,7 @@ window.handleAdminExcelUpload = (e) => {
                 }
             }
 
-            // IL NE DOIT Y AVOIR QU'UN SEUL 'const newMachine' ICI :
+            // --- CRÉATION DE LA MACHINE ---
             const newMachine = { 
                 id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, 
                 type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, 
