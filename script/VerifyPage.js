@@ -598,7 +598,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     
     let bannerBg = 'bg-[#ecfdf5]'; let bannerBorder = 'bg-[#10b981]';
     let titleColor = 'text-[#065f46]'; let mainTextColor = 'text-[#047857]'; let subTextColor = 'text-[#065f46]';
-    let mainTitle = 'AUTORISÉ'; let badgeBg = 'bg-green-100 text-green-700 border-green-200'; let badgeText = 'ZONE SÉCURISÉE';
+    let mainTitle = 'AUTORISÉ'; let titleIcon = null; let badgeBg = 'bg-green-100 text-green-700 border-green-200'; let badgeText = 'ZONE SÉCURISÉE';
     let progressColor = 'bg-[#10b981]';
 
     if (!isSafe) {
@@ -625,7 +625,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         // NOUVEAU THÈME ALERTE > 80% (Remplace l'angle)
         bannerBg = 'bg-amber-50'; bannerBorder = 'bg-amber-500';
         titleColor = 'text-amber-800'; mainTextColor = 'text-amber-700'; subTextColor = 'text-amber-600';
-        mainTitle = 'AUTORISÉ ⚠️'; badgeBg = 'bg-amber-100 text-amber-700 border-amber-200'; progressColor = 'bg-amber-500';
+        mainTitle = 'AUTORISÉ'; titleIcon = '⚠️'; badgeBg = 'bg-amber-100 text-amber-700 border-amber-200'; progressColor = 'bg-amber-500';
         badgeText = 'UTILISATION ÉLEVÉE';
         
         statusMessage = `Taux d'utilisation critique (${Math.round(usagePercent)}%)`;
@@ -720,23 +720,24 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             <CustomRange label="Hauteur Levage" value={inputHeight} min={0} max={(machine?.maxHeight ?? 0) + 5} step={0.5} unit="m" onChange={(e) => setInputHeight(parseFloat(e.target.value))} />
 
                             {machine && (machine.mode === 'multi_chart' || (machine.hasTools && machine.tools && machine.tools.length > 0)) && (
-                                <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
+                                <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
                                     <div className="flex justify-between items-center mb-2">
                                         <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
-                                            {/* --- NOUVEAU DESIGN MASSE TOTALE --- */}
-                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex items-center justify-between">
-                                                <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
-                                                    <Anchor size={14} className="text-[#004e98]"/> Masse Totale (Charge + Accessoire)
-                                                </label>
-                                                <div className="text-xl font-black text-slate-800">
-                                                    {(totalMass / 1000).toFixed(2)} <span className="text-sm text-slate-500 font-bold">t</span>
-                                                </div>
-                                            </div>
                                         {machine.mode === 'multi_chart' && (
                                             <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
                                                 {isAutoConfig ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
                                             </button>
                                         )}
+                                    </div>
+
+                                    {/* --- NOUVEAU DESIGN MASSE TOTALE --- */}
+                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <label className="text-xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-2">
+                                            <Anchor size={14} className="text-[#004e98]"/> Masse Totale (Charge + Accessoire)
+                                        </label>
+                                        <div className="text-2xl font-black text-[#004e98]">
+                                            {(totalMass / 1000).toFixed(2)} <span className="text-sm font-bold text-slate-500">t</span>
+                                        </div>
                                     </div>
 
                                     {machine.mode === 'multi_chart' && (
@@ -782,7 +783,9 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <div id="tour-status-card" className="p-6 pl-9 flex-1 flex flex-col">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <h2 className={`text-2xl font-bold uppercase mb-1 ${titleColor}`}>{mainTitle}</h2>
+                                    <h2 className={`text-2xl font-bold uppercase mb-1 flex items-center gap-2 ${titleColor}`}>
+                                        {mainTitle} {titleIcon && <span className="text-2xl leading-none">{titleIcon}</span>}
+                                    </h2>
                                     <p className={`font-bold text-sm ${mainTextColor}`}>{statusMessage}</p>
                                     <p className={`text-xs font-medium mt-1 pr-4 max-w-sm ${subTextColor}`}>{statusSubMessage}</p>
                                 </div>
