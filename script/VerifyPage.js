@@ -752,6 +752,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
                             {machine && (machine.mode === 'multi_chart' || (machine.hasTools && machine.tools && machine.tools.length > 0)) && (
                                 <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
+                                    
+                                    {/* TITRE ET BOUTON AUTO */}
                                     <div className="flex justify-between items-center mb-2">
                                         <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
                                         {machine.mode === 'multi_chart' && (
@@ -761,23 +763,23 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                         )}
                                     </div>
 
-                                    /* --- Informations de Calage et Origine --- */
-                                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
-                                        <div className="text-[10px] font-black text-blue-800 uppercase tracking-wider mb-1">
-                                            Stabilisateurs : Déploiement Maximal Requis
-                                        </div>
-                                        <div className="flex justify-between items-end">
-                                            <span className="text-xs text-blue-700 font-bold">Surface minimale :</span>
-                                            <span className="text-lg font-black text-blue-900">
-                                                {machine?.stabilizerSurface || "---"} m²
+                                    {/* 1. BLOC STABILISATEURS */}
+                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <label className="text-[11px] font-black uppercase text-[#004e98] mb-2 flex items-center gap-2">
+                                            STABILISATEURS : DÉPLOIEMENT MAXIMAL REQUIS
+                                        </label>
+                                        <div className="flex justify-between items-baseline mb-1">
+                                            <span className="text-xs text-[#004e98] font-bold">Surface minimale :</span>
+                                            <span className="text-2xl font-black text-[#004e98]">
+                                                {machine?.stabilizerSurface || "---"} <span className="text-sm font-bold">m²</span>
                                             </span>
                                         </div>
-                                        <p className="text-[10px] text-blue-600 italic mt-2 leading-tight">
+                                        <p className="text-[10px] text-blue-600 italic leading-tight mt-2">
                                             ⚠️ Si déploiement maximal impossible (calage intermédiaire), réaliser l’adéquation de levage à la main.
                                         </p>
                                     </div>
 
-                                    {/* --- NOUVEAU DESIGN MASSE TOTALE --- */}
+                                    {/* 2. BLOC MASSE TOTALE */}
                                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                         <label className="text-xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-2">
                                             <Anchor size={14} className="text-[#004e98]"/> 
@@ -792,6 +794,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
                                     {machine.mode === 'multi_chart' && (
                                         <>
+                                            {/* 3. BLOC LONGUEUR FLÈCHE */}
                                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                                 <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
                                                 <div className="flex flex-wrap gap-2">
@@ -800,6 +803,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                                     ))}
                                                 </div>
                                             </div>
+
+                                            {/* 4. BLOC CONTREPOIDS */}
                                             {machine.hasCounterweights && (
                                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                                     <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids (t)</label>
@@ -812,6 +817,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                             )}
                                         </>
                                     )}
+
+                                    {/* 5. BLOC ACCESSOIRE / OUTIL */}
                                     {machine.hasTools && machine.tools && machine.tools.length > 0 && (
                                         <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                             <label className="text-xs font-bold uppercase text-slate-500 mb-2 block flex items-center gap-2"><Anchor size={12}/> Accessoire / Outil</label>
@@ -834,7 +841,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             <div className="flex justify-between items-start">
                                 <div>
                                     <h2 className={`text-2xl font-bold uppercase mb-1 flex items-center gap-2 ${titleColor}`}>
-                                        {mainTitle} {titleIcon && <span className="text-2xl leading-none">{titleIcon}</span>}
+                                        {mainTitle} {titleIcon}
                                     </h2>
                                     <p className={`font-bold text-sm ${mainTextColor}`}>{statusMessage}</p>
                                     <p className={`text-xs font-medium mt-1 pr-4 max-w-sm ${subTextColor}`}>{statusSubMessage}</p>
