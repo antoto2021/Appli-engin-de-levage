@@ -642,6 +642,26 @@ window.handleAdminExcelUpload = (e) => {
                 }
             }
 
+            // --- LECTURE DE LA CONFIGURATION (SURFACE DE CALAGE) ---
+            let stabilizerSurface = 0;
+            const configSheetName = wb.SheetNames.find(n => n.toLowerCase().includes('configuration'));
+            
+            if (configSheetName) {
+                const wsConfig = wb.Sheets[configSheetName];
+                // On cherche "Surface de calage" en A1 et la valeur en B1
+                const surfaceVal = parseFloat(wsConfig['B1']?.v);
+                if (!isNaN(surfaceVal)) {
+                    stabilizerSurface = surfaceVal;
+                }
+            }
+            
+            // MISE À JOUR DE LA MACHINE : Ajout de stabilizerSurface
+            const newMachine = { 
+                // ... vos autres champs ...
+                stabilizerSurface: stabilizerSurface, // Stocké en m²
+                // ...
+            };
+
             // --- CRÉATION DE LA MACHINE ---
             const newMachine = { 
                 id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, 
