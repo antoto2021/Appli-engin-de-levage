@@ -839,7 +839,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         selectedBoomLen={selectedBoomLen}
                         selectedTool={selectedTool}
                         isSafe={isSafe}
-                        isAngleWarning={isAngleWarning}
+                        isAngleWarning={is80PercentWarning}
                         badgeText={badgeText}
                         badgeBg={badgeBg}
                     />
