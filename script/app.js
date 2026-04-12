@@ -654,13 +654,6 @@ window.handleAdminExcelUpload = (e) => {
                     stabilizerSurface = surfaceVal;
                 }
             }
-            
-            // MISE À JOUR DE LA MACHINE : Ajout de stabilizerSurface
-            const newMachine = { 
-                // ... vos autres champs ...
-                stabilizerSurface: stabilizerSurface, // Stocké en m²
-                // ...
-            };
 
             // --- CRÉATION DE LA MACHINE ---
             const newMachine = { 
@@ -669,7 +662,8 @@ window.handleAdminExcelUpload = (e) => {
                 hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, 
                 boomLengths: boomLengths, charts: charts, moufles: moufles, 
                 hasTools: tools.length > 0, tools: tools.length > 0 ? tools : null, toolsMass: toolsMass, 
-                createdAt: new Date().toISOString(), isCustom: true 
+                createdAt: new Date().toISOString(), isCustom: true,
+                stabilizerSurface: stabilizerSurface // Stocké en m²
             };
             
             // Appel de la fonction React via le pont créé
