@@ -1,3 +1,12 @@
+const CRANE_SLINGS_TABLE = [
+    { upTo: 6000, mass: 22 },    // Jusqu'à 6t -> 22kg d'élingues (4 élingues de 5m chacunes, diamètre 7mm)
+    { upTo: 12600, mass: 44 },  // Jusqu'à 12.6t -> 44kg d'élingues (diamètre 10mm)
+    { upTo: 32000, mass: 114 },  // Jusqu'à 32t -> 114kg d'élingues (diamètre 16mm)
+    { upTo: 50000, mass: 180 },  // Jusqu'à 50t -> 180kg d'élingues (diamètre 20mm)
+    { upTo: 84800, mass: 304 },  // Jusqu'à 84.8t -> 304kg d'élingues (diamètre 26mm)
+    { upTo: Infinity, mass: 460 } // Au delà -> 460kg d'élingues
+];
+
 const CustomRange = ({ label, value, min, max, step, onChange, unit = "", maxLabel = "" }) => {
     const range = max - min;
     const percentage = range > 0 ? Math.min(100, Math.max(0, ((value - min) / range) * 100)) : 0;
@@ -304,6 +313,12 @@ const GraphChart2D = ({ machine, inputDist, inputHeight, selectedBoomLen, select
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
                 <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
+
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white/80 px-3 py-1 rounded-full border border-slate-200 text-[10px] font-bold text-slate-500 z-10">
+                    {machine.category === 'telehandler' 
+                        ? "📍 Point d'origine : devant les roues" 
+                        : "📍 Point d'origine : centre de rotation"}
+                </div>
             </svg>
             
             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${badgeBg}`}> 
@@ -545,15 +560,31 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     }, [machine, inputDist, inputHeight, selectedTool]);
 
     // --- NOUVEAU : CALCUL DE LA MASSE TOTALE ---
-    // On récupère la masse de l'accessoire sélectionné (en kg pour le calcul)
+    // --- CALCUL DYNAMIQUE DES ACCESSOIRES ---
     const accessoryMassKg = useMemo(() => {
-        if (machine?.toolsMass && selectedTool && machine.toolsMass[selectedTool]) {
-            return machine.toolsMass[selectedTool] * 1000;
+        if (!machine) return 0;
+    
+        // CAS 1 : ENGIN TÉLESCOPIQUE (Lecture de l'onglet Accessoires de l'Excel)
+        if (machine.category === 'telehandler') {
+            if (machine.toolsMass && selectedTool && machine.toolsMass[selectedTool]) {
+                return machine.toolsMass[selectedTool] * 1000;
+            }
+            return 0;
+        } 
+        
+        // CAS 2 : GRUE (Moufle + Élingues selon barème interne)
+        else {
+            // 1. Masse du moufle sélectionné (déjà en kg dans votre BDD)
+            const moufleMass = currentMoufle ? (currentMoufle * 1000) : 0;
+            
+            // 2. Masse des élingues (basée sur la charge levée)
+            const slingEntry = CRANE_SLINGS_TABLE.find(entry => inputLoad <= entry.upTo);
+            const slingsMass = slingEntry ? slingEntry.mass : 0;
+            
+            return moufleMass + slingsMass;
         }
-        return 0; // 0 kg si pas d'accessoire
-    }, [machine, selectedTool]);
-
-    // Masse Totale = Masse sur le slider + Masse de l'accessoire
+    }, [machine, selectedTool, inputLoad, currentMoufle]);
+    
     const totalMass = inputLoad + accessoryMassKg;
 
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
@@ -730,10 +761,29 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                         )}
                                     </div>
 
+                                    /* --- Informations de Calage et Origine --- */
+                                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
+                                        <div className="text-[10px] font-black text-blue-800 uppercase tracking-wider mb-1">
+                                            Stabilisateurs : Déploiement Maximal Requis
+                                        </div>
+                                        <div className="flex justify-between items-end">
+                                            <span className="text-xs text-blue-700 font-bold">Surface minimale :</span>
+                                            <span className="text-lg font-black text-blue-900">
+                                                {machine?.stabilizerSurface || "---"} m²
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-blue-600 italic mt-2 leading-tight">
+                                            ⚠️ Si déploiement maximal impossible (calage intermédiaire), réaliser l’adéquation de levage à la main.
+                                        </p>
+                                    </div>
+
                                     {/* --- NOUVEAU DESIGN MASSE TOTALE --- */}
                                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                         <label className="text-xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-2">
-                                            <Anchor size={14} className="text-[#004e98]"/> Masse Totale (Charge + Accessoire)
+                                            <Anchor size={14} className="text-[#004e98]"/> 
+                                            {machine?.category === 'telehandler' 
+                                                ? "Masse Totale (Charge + Accessoire)" 
+                                                : "Masse Totale (Charge + Moufle + Élingues)"}
                                         </label>
                                         <div className="text-2xl font-black text-[#004e98]">
                                             {(totalMass / 1000).toFixed(2)} <span className="text-sm font-bold text-slate-500">t</span>
