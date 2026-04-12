@@ -559,34 +559,36 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return Math.floor(maxCap);
     }, [machine, inputDist, inputHeight, selectedTool]);
 
-    // --- NOUVEAU : CALCUL DE LA MASSE TOTALE ---
-    // --- CALCUL DYNAMIQUE DES ACCESSOIRES ---
-    const accessoryMassKg = useMemo(() => {
-        if (!machine) return 0;
-    
-        // CAS 1 : ENGIN TÉLESCOPIQUE (Lecture de l'onglet Accessoires de l'Excel)
-        if (machine.category === 'telehandler') {
-            if (machine.toolsMass && selectedTool && machine.toolsMass[selectedTool]) {
-                return machine.toolsMass[selectedTool] * 1000;
-            }
-            return 0;
-        } 
-        
-        // CAS 2 : GRUE (Moufle + Élingues selon barème interne)
-        else {
-            // 1. Masse du moufle sélectionné (déjà en kg dans votre BDD)
-            const moufleMass = currentMoufle ? (currentMoufle * 1000) : 0;
-            
-            // 2. Masse des élingues (basée sur la charge levée)
-            const slingEntry = CRANE_SLINGS_TABLE.find(entry => inputLoad <= entry.upTo);
-            const slingsMass = slingEntry ? slingEntry.mass : 0;
-            
-            return moufleMass + slingsMass;
+    // --- 1. CALCUL DE LA MASSE TOTALE ET DES ACCESSOIRES ---
+    // a) Masse des élingues (Grues)
+    const slingsMass = useMemo(() => {
+        if (!machine || machine.category === 'telehandler') return 0;
+        const slingEntry = CRANE_SLINGS_TABLE.find(entry => inputLoad <= entry.upTo);
+        return slingEntry ? slingEntry.mass : 0;
+    }, [machine, inputLoad]);
+
+    // b) Choix du moufle (Grues) basé sur Charge + Elingues
+    const currentMoufle = useMemo(() => {
+        if (!machine || machine.category === 'telehandler') return 0;
+        return getMoufleForLoad(machine, inputLoad + slingsMass);
+    }, [machine, inputLoad, slingsMass]);
+
+    // c) Masse de l'accessoire Télescopique
+    const telehandlerToolMass = useMemo(() => {
+        if (machine?.category === 'telehandler' && machine?.toolsMass && selectedTool && machine.toolsMass[selectedTool]) {
+            return machine.toolsMass[selectedTool] * 1000;
         }
-    }, [machine, selectedTool, inputLoad, currentMoufle]);
-    
+        return 0;
+    }, [machine, selectedTool]);
+
+    // d) Synthèse des accessoires et Masse Totale
+    const accessoryMassKg = machine?.category === 'telehandler' 
+        ? telehandlerToolMass 
+        : ((currentMoufle ? currentMoufle * 1000 : 0) + slingsMass);
+
     const totalMass = inputLoad + accessoryMassKg;
 
+    // --- 2. CALCULS DE SÉCURITÉ ---
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
@@ -604,7 +606,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     const isHeightValid = machine?.mode === 'multi_chart' ? (inputHeight <= tipHeight) : (inputHeight <= machine?.maxHeight);
     
-    // ON UTILISE MAINTENANT totalMass AU LIEU DE inputLoad POUR LA SÉCURITÉ
     const isLoadSafe = totalMass <= safeLoad && safeLoad > 0;
     const isSafe = isLoadSafe && isHeightValid;
     const usagePercent = safeLoad > 0 ? (totalMass / safeLoad) * 100 : (totalMass > 0 ? 110 : 0);
@@ -619,9 +620,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return 0;
     }, [machine, selectedCwt, selectedBoomLen]);
 
-    // --- NOUVEAU : ALERTE > 80% ---
+    // --- ALERTE > 80% ---
     const is80PercentWarning = isSafe && usagePercent > 80;
-    const currentMoufle = getMoufleForLoad(machine, totalMass); // On prend la masse totale pour la moufle
 
     // --- GESTION DYNAMIQUE DES MESSAGES ET DES COULEURS ---
     let statusMessage = "Configuration conforme";
