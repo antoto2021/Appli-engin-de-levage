@@ -642,24 +642,40 @@ window.handleAdminExcelUpload = (e) => {
                 }
             }
 
-            // MODIFICATION DE LA CRÉATION DE LA MACHINE : Ajout de hasTools, tools et toolsMass
+            // --- NOUVEAU : Lecture de l'onglet Accessoires ---
+            let tools = [];
+            let toolsMass = {};
+            const accessoiresSheetName = wb.SheetNames.find(n => n.toLowerCase() === 'accessoires' || n.toLowerCase() === 'outils');
+            
+            if (accessoiresSheetName) {
+                const wsAccessoires = wb.Sheets[accessoiresSheetName];
+                const dataAccessoires = XLSX.utils.sheet_to_json(wsAccessoires, { header: 1 });
+                for (let r = 1; r < dataAccessoires.length; r++) {
+                    const toolName = dataAccessoires[r][0];
+                    const toolMassT = parseFloat(dataAccessoires[r][1]);
+                    if (toolName && !isNaN(toolMassT)) { 
+                        tools.push(toolName.toString());
+                        toolsMass[toolName.toString()] = toolMassT;
+                    }
+                }
+            }
+
+            // IL NE DOIT Y AVOIR QU'UN SEUL 'const newMachine' ICI :
             const newMachine = { 
                 id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, 
                 type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, 
                 hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, 
                 boomLengths: boomLengths, charts: charts, moufles: moufles, 
-                hasTools: tools.length > 0, tools: tools.length > 0 ? tools : null, toolsMass: toolsMass, // <-- NOUVEAUTÉ ICI
+                hasTools: tools.length > 0, tools: tools.length > 0 ? tools : null, toolsMass: toolsMass, 
                 createdAt: new Date().toISOString(), isCustom: true 
             };
-
-            const newMachine = { id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, boomLengths: boomLengths, charts: charts, moufles: moufles, createdAt: new Date().toISOString(), isCustom: true };
             
             // Appel de la fonction React via le pont créé
             if(window.addGlobalMachine) {
                 window.addGlobalMachine([newMachine]);
-                setTimeout(() => window.refreshAdminPanel(), 100);
                 statusEl.innerText = "✅ Engin importé et sauvegardé avec succès !";
                 statusEl.className = "mt-4 text-sm font-bold text-center text-emerald-600";
+                setTimeout(() => window.refreshAdminPanel(), 100);
             }
         } catch (error) { 
             statusEl.innerText = "❌ Erreur : " + error.message;
@@ -670,6 +686,7 @@ window.handleAdminExcelUpload = (e) => {
     }; 
     reader.readAsBinaryString(file);
 };
+
     
 // Attachement global pour les appels onclick HTML
 window.forceUpdate = forceUpdate;
