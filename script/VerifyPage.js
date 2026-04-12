@@ -431,7 +431,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         }
     }, [machine, absoluteMinReach, isAutoConfig]);
 
-    // --- LOGIQUE AUTO CONFIG TOTALE INTÉGRANT LA TOLÉRANCE D'ANGLE ---
+    // --- LOGIQUE AUTO CONFIG TOTALE INTÉGRANT LA SÉCURITÉ < 80% ---
     useEffect(() => {
         if (isAutoConfig && machine && machine.mode === 'multi_chart') {
             const sortedCwts = machine.hasCounterweights ? [...machine.counterweights].sort((a, b) => parseFloat(a) - parseFloat(b)) : [null];
@@ -439,34 +439,52 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
             let bestCwt = null; let bestBoom = null; let found = false;
 
-            // PASSE 1 : Priorité absolue -> On cherche avec un angle >= 45°
+            // PASSE 1 : L'IDÉAL -> Angle >= 45° ET Utilisation <= 80%
             for (const cwt of sortedCwts) {
                 for (const boom of sortedBooms) {
                     if (boom <= inputDist) continue; 
                     const angleDeg = Math.acos(inputDist / boom) * (180 / Math.PI);
-                    if (angleDeg < 45) continue; // Contrainte de 45° stricte
+                    if (angleDeg < 45) continue;
 
                     const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
                     if (tipH < inputHeight) continue; 
 
                     const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
-                    if (cap >= totalMass - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
+                    if (cap > 0 && (totalMass / cap) <= 0.80) { 
+                        bestCwt = cwt; bestBoom = boom; found = true; break; 
+                    }
                 }
                 if (found) break; 
             }
 
-            // PASSE 2 : Tolérance -> Si on ne trouve rien (ex: masse trop élevée nécessitant une flèche courte),
-            // on autorise une configuration avec angle < 45° (elle déclenchera l'alerte orange plus bas)
+            // PASSE 2 : LE PLAN B -> Angle >= 45° ET Capacité suffisante (Déclenchera l'alerte > 80%)
             if (!found) {
                 for (const cwt of sortedCwts) {
                     for (const boom of sortedBooms) {
                         if (boom <= inputDist) continue; 
+                        const angleDeg = Math.acos(inputDist / boom) * (180 / Math.PI);
+                        if (angleDeg < 45) continue;
                         
                         const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
                         if (tipH < inputHeight) continue; 
 
                         const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
-                        if (cap >= inputLoad - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
+                        if (cap >= totalMass - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
+                    }
+                    if (found) break; 
+                }
+            }
+
+            // PASSE 3 : TOLÉRANCE -> On lâche la contrainte de l'angle
+            if (!found) {
+                for (const cwt of sortedCwts) {
+                    for (const boom of sortedBooms) {
+                        if (boom <= inputDist) continue; 
+                        const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
+                        if (tipH < inputHeight) continue; 
+
+                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
+                        if (cap >= totalMass - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
                     }
                     if (found) break; 
                 }
@@ -479,7 +497,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             if (bestCwt && bestCwt !== selectedCwt) { setSelectedCwt(bestCwt); }
             if (bestBoom && bestBoom !== selectedBoomLen) { setSelectedBoomLen(bestBoom); }
         }
-    }, [isAutoConfig, inputLoad, inputDist, inputHeight, machine, selectedTool]);
+    }, [isAutoConfig, inputLoad, totalMass, inputDist, inputHeight, machine, selectedTool]);
 
     // --- CAPACITÉ MAX ABSOLUE ---
     const absoluteMaxCapAtDist = useMemo(() => {
@@ -607,7 +625,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         // NOUVEAU THÈME ALERTE > 80% (Remplace l'angle)
         bannerBg = 'bg-amber-50'; bannerBorder = 'bg-amber-500';
         titleColor = 'text-amber-800'; mainTextColor = 'text-amber-700'; subTextColor = 'text-amber-600';
-        mainTitle = 'AUTORISÉ (ATTENTION)'; badgeBg = 'bg-amber-100 text-amber-700 border-amber-200'; progressColor = 'bg-amber-500';
+        mainTitle = 'AUTORISÉ ⚠️'; badgeBg = 'bg-amber-100 text-amber-700 border-amber-200'; progressColor = 'bg-amber-500';
         badgeText = 'UTILISATION ÉLEVÉE';
         
         statusMessage = `Taux d'utilisation critique (${Math.round(usagePercent)}%)`;
@@ -705,13 +723,14 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 <div className="mt-8 pt-6 border-t border-slate-200 space-y-6">
                                     <div className="flex justify-between items-center mb-2">
                                         <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
-                                            <div className="flex justify-between items-center bg-slate-100 p-3 rounded-lg border border-slate-200 mt-3 mb-4">
-                                                <span className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                                            {/* --- NOUVEAU DESIGN MASSE TOTALE --- */}
+                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex items-center justify-between">
+                                                <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
                                                     <Anchor size={14} className="text-[#004e98]"/> Masse Totale (Charge + Accessoire)
-                                                </span>
-                                                <span className="text-xl font-black text-slate-800">
+                                                </label>
+                                                <div className="text-xl font-black text-slate-800">
                                                     {(totalMass / 1000).toFixed(2)} <span className="text-sm text-slate-500 font-bold">t</span>
-                                                </span>
+                                                </div>
                                             </div>
                                         {machine.mode === 'multi_chart' && (
                                             <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
