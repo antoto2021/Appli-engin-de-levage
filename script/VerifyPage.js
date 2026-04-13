@@ -313,14 +313,14 @@ const GraphChart2D = ({ machine, inputDist, inputHeight, selectedBoomLen, select
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
                 <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
+            </svg>
 
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white/80 px-3 py-1 rounded-full border border-slate-200 text-[10px] font-bold text-slate-500 z-10">
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white/80 px-3 py-1 rounded-full border border-slate-200 text-[10px] font-bold text-slate-500 z-10">
                     {machine.category === 'telehandler' 
                         ? "📍 Point d'origine : devant les roues" 
                         : "📍 Point d'origine : centre de rotation"}
-                </div>
-            </svg>
-            
+            </div>
+                            
             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${badgeBg}`}> 
                 {badgeText} 
             </div>
@@ -559,32 +559,46 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return Math.floor(maxCap);
     }, [machine, inputDist, inputHeight, selectedTool]);
 
-    // --- 1. CALCUL DE LA MASSE TOTALE ET DES ACCESSOIRES ---
-    // a) Masse des élingues (Grues)
-    const slingsMass = useMemo(() => {
+    // --- 1. CALCUL SÉQUENTIEL DE LA MASSE TOTALE ET DES ACCESSOIRES ---
+    
+    // a) Masse des élingues (Grues uniquement)
+    const slingsMassKg = useMemo(() => {
         if (!machine || machine.category === 'telehandler') return 0;
         const slingEntry = CRANE_SLINGS_TABLE.find(entry => inputLoad <= entry.upTo);
         return slingEntry ? slingEntry.mass : 0;
     }, [machine, inputLoad]);
 
-    // b) Choix du moufle (Grues) basé sur Charge + Elingues
-    const currentMoufle = useMemo(() => {
-        if (!machine || machine.category === 'telehandler') return 0;
-        return getMoufleForLoad(machine, inputLoad + slingsMass);
-    }, [machine, inputLoad, slingsMass]);
+    // b) Choix automatique du moufle et récupération de sa masse (Grues uniquement)
+    const moufleData = useMemo(() => {
+        if (!machine || machine.category === 'telehandler' || !machine.moufles) return { capacity: 0, massKg: 0 };
+        
+        const loadToLiftT = (inputLoad + slingsMassKg) / 1000;
+        
+        // On trouve le moufle capable de lever cette charge
+        const suitableMoufle = machine.moufles.find(m => m.maxLoad >= loadToLiftT);
+        if (suitableMoufle) {
+            return { capacity: suitableMoufle.maxLoad, massKg: suitableMoufle.mass * 1000 };
+        }
+        
+        // Si charge trop lourde, on prend le plus gros moufle par défaut
+        const maxMoufle = machine.moufles[machine.moufles.length - 1];
+        return maxMoufle ? { capacity: maxMoufle.maxLoad, massKg: maxMoufle.mass * 1000 } : { capacity: 0, massKg: 0 };
+    }, [machine, inputLoad, slingsMassKg]);
 
-    // c) Masse de l'accessoire Télescopique
-    const telehandlerToolMass = useMemo(() => {
+    const currentMoufle = moufleData.capacity; // Utilisé pour l'affichage dans la bulle
+
+    // c) Masse de l'accessoire (Télescopiques uniquement)
+    const telehandlerToolMassKg = useMemo(() => {
         if (machine?.category === 'telehandler' && machine?.toolsMass && selectedTool && machine.toolsMass[selectedTool]) {
             return machine.toolsMass[selectedTool] * 1000;
         }
         return 0;
     }, [machine, selectedTool]);
 
-    // d) Synthèse des accessoires et Masse Totale
+    // d) Somme finale des accessoires et Masse Totale
     const accessoryMassKg = machine?.category === 'telehandler' 
-        ? telehandlerToolMass 
-        : ((currentMoufle ? currentMoufle * 1000 : 0) + slingsMass);
+        ? telehandlerToolMassKg 
+        : (moufleData.massKg + slingsMassKg);
 
     const totalMass = inputLoad + accessoryMassKg;
 
@@ -763,21 +777,23 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                         )}
                                     </div>
 
-                                    {/* 1. BLOC STABILISATEURS */}
-                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                        <label className="text-[11px] font-black uppercase text-[#004e98] mb-2 flex items-center gap-2">
-                                            STABILISATEURS : DÉPLOIEMENT MAXIMAL REQUIS
-                                        </label>
-                                        <div className="flex justify-between items-baseline mb-1">
-                                            <span className="text-xs text-[#004e98] font-bold">Surface minimale :</span>
-                                            <span className="text-2xl font-black text-[#004e98]">
-                                                {machine?.stabilizerSurface || "---"} <span className="text-sm font-bold">m²</span>
-                                            </span>
+                                    {/* 1. BLOC STABILISATEURS (UNIQUEMENT GRUES) */}
+                                    {machine.category !== 'telehandler' && (
+                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                            <label className="text-[11px] font-black uppercase text-[#004e98] mb-2 flex items-center gap-2">
+                                                STABILISATEURS : DÉPLOIEMENT MAXIMAL REQUIS
+                                            </label>
+                                            <div className="flex justify-between items-baseline mb-1">
+                                                <span className="text-xs text-[#004e98] font-bold">Surface minimale :</span>
+                                                <span className="text-2xl font-black text-[#004e98]">
+                                                    {machine?.stabilizerSurface || "---"} <span className="text-sm font-bold">m²</span>
+                                                </span>
+                                            </div>
+                                            <p className="text-[10px] text-blue-600 italic leading-tight mt-2">
+                                                ⚠️ Si déploiement maximal impossible (calage intermédiaire), réaliser l’adéquation de levage à la main.
+                                            </p>
                                         </div>
-                                        <p className="text-[10px] text-blue-600 italic leading-tight mt-2">
-                                            ⚠️ Si déploiement maximal impossible (calage intermédiaire), réaliser l’adéquation de levage à la main.
-                                        </p>
-                                    </div>
+                                    )}
 
                                     {/* 2. BLOC MASSE TOTALE */}
                                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
