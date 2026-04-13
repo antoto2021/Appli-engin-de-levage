@@ -317,8 +317,8 @@ const GraphChart2D = ({ machine, inputDist, inputHeight, selectedBoomLen, select
 
             <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white/80 px-3 py-1 rounded-full border border-slate-200 text-[10px] font-bold text-slate-500 z-10">
                     {machine.category === 'telehandler' 
-                        ? "📍 Point d'origine : devant les roues" 
-                        : "📍 Point d'origine : centre de rotation"}
+                        ? "📍 Point d'origine : Devant les roues de l'engin" 
+                        : "📍 Point d'origine : Milieu de la cabine"}
             </div>
                             
             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${badgeBg}`}> 
@@ -560,7 +560,6 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     }, [machine, inputDist, inputHeight, selectedTool]);
 
     // --- 1. CALCUL SÉQUENTIEL DE LA MASSE TOTALE ET DES ACCESSOIRES ---
-    
     // a) Masse des élingues (Grues uniquement)
     const slingsMassKg = useMemo(() => {
         if (!machine || machine.category === 'telehandler') return 0;
@@ -568,24 +567,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return slingEntry ? slingEntry.mass : 0;
     }, [machine, inputLoad]);
 
-    // b) Choix automatique du moufle et récupération de sa masse (Grues uniquement)
-    const moufleData = useMemo(() => {
-        if (!machine || machine.category === 'telehandler' || !machine.moufles) return { capacity: 0, massKg: 0 };
-        
-        const loadToLiftT = (inputLoad + slingsMassKg) / 1000;
-        
-        // On trouve le moufle capable de lever cette charge
-        const suitableMoufle = machine.moufles.find(m => m.maxLoad >= loadToLiftT);
-        if (suitableMoufle) {
-            return { capacity: suitableMoufle.maxLoad, massKg: suitableMoufle.mass * 1000 };
-        }
-        
-        // Si charge trop lourde, on prend le plus gros moufle par défaut
-        const maxMoufle = machine.moufles[machine.moufles.length - 1];
-        return maxMoufle ? { capacity: maxMoufle.maxLoad, massKg: maxMoufle.mass * 1000 } : { capacity: 0, massKg: 0 };
+    // b) Choix du moufle (Grues uniquement)
+    const currentMoufle = useMemo(() => {
+        if (!machine || machine.category === 'telehandler') return 0;
+        // La fonction d'origine récupère le poids du moufle en tonnes.
+        // Le crochet soulève la charge + les élingues
+        return getMoufleForLoad(machine, inputLoad + slingsMassKg) || 0;
     }, [machine, inputLoad, slingsMassKg]);
-
-    const currentMoufle = moufleData.capacity; // Utilisé pour l'affichage dans la bulle
 
     // c) Masse de l'accessoire (Télescopiques uniquement)
     const telehandlerToolMassKg = useMemo(() => {
@@ -595,12 +583,19 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return 0;
     }, [machine, selectedTool]);
 
-    // d) Somme finale des accessoires et Masse Totale
-    const accessoryMassKg = machine?.category === 'telehandler' 
-        ? telehandlerToolMassKg 
-        : (moufleData.massKg + slingsMassKg);
+    // d) Masse Totale
+    const totalMass = useMemo(() => {
+        if (machine?.category === 'telehandler') {
+            return inputLoad + telehandlerToolMassKg;
+        } else {
+            return inputLoad + (currentMoufle * 1000) + slingsMassKg;
+        }
+    }, [machine, inputLoad, telehandlerToolMassKg, currentMoufle, slingsMassKg]);
 
-    const totalMass = inputLoad + accessoryMassKg;
+    // e) Variable d'affichage pour la dernière bulle (Élingues ou Accessoire)
+    const displayAccessoryMassT = machine?.category === 'telehandler' 
+        ? (telehandlerToolMassKg / 1000) 
+        : (slingsMassKg / 1000);
 
     // --- 2. CALCULS DE SÉCURITÉ ---
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
@@ -895,32 +890,39 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-2 w-full lg:w-auto lg:ml-auto">
                                 
-                                <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                                    <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Flèche</span>
-                                    <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
-                                        {selectedBoomLen || '0'} m
-                                    </span>
-                                </div>
+                                {machine?.mode === 'multi_chart' && (
+                                    <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
+                                        <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Flèche</span>
+                                        <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
+                                            {selectedBoomLen || '0'} m
+                                        </span>
+                                    </div>
+                                )}
                     
-                                <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                                    <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Contrepoids</span>
-                                    <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
-                                        {selectedCwt || '0'} t
-                                    </span>
-                                </div>
+                                {machine?.hasCounterweights && (
+                                    <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
+                                        <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Contrepoids</span>
+                                        <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
+                                            {selectedCwt || '0'} t
+                                        </span>
+                                    </div>
+                                )}
                     
-                                <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                                    <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Moufle</span>
-                                    <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
-                                        {currentMoufle || '0'} t
-                                    </span>
-                                </div>
+                                {machine?.category !== 'telehandler' && (
+                                    <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
+                                        <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Moufle</span>
+                                        <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
+                                            {currentMoufle > 0 ? currentMoufle.toFixed(2) + ' t' : '---'}
+                                        </span>
+                                    </div>
+                                )}
 
-                                {/* NOUVELLE Bulle Accessoire */}
                                 <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                                    <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Accessoire</span>
+                                    <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">
+                                        {machine?.category === 'telehandler' ? 'Accessoire' : 'Élingues'}
+                                    </span>
                                     <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
-                                        {accessoryMassKg > 0 ? (accessoryMassKg / 1000).toFixed(2) + ' t' : '---'}
+                                        {displayAccessoryMassT > 0 ? displayAccessoryMassT.toFixed(2) + ' t' : '---'}
                                     </span>
                                 </div>
                     
