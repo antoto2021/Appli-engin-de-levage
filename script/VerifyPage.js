@@ -315,10 +315,10 @@ const GraphChart2D = ({ machine, inputDist, inputHeight, selectedBoomLen, select
                 <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
             </svg>
 
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white/80 px-3 py-1 rounded-full border border-slate-200 text-[10px] font-bold text-slate-500 z-10">
-                    {machine.category === 'telehandler' 
-                        ? "📍 Point d'origine : Devant les roues de l'engin" 
-                        : "📍 Point d'origine : Milieu de la cabine"}
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white/90 px-4 py-1.5 rounded-full border border-slate-300 text-sm font-bold text-slate-700 z-10 shadow-sm">
+                {machine.category === 'telehandler' 
+                    ? "📍 Point d'origine : Devant les roues de l'engin"
+                    : "📍 Point d'origine : Milieu de la cabine"}
             </div>
                             
             <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${badgeBg}`}> 
@@ -798,7 +798,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                                 ? "Masse Totale (Charge + Accessoire)" 
                                                 : "Masse Totale (Charge + Moufle + Élingues)"}
                                         </label>
-                                        <div className="text-2xl font-black text-[#004e98]">
+                                        <div className="text-1xl font-black text-[#004e98]">
                                             {(totalMass / 1000).toFixed(2)} <span className="text-sm font-bold text-slate-500">t</span>
                                         </div>
                                     </div>
