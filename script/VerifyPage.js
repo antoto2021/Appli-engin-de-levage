@@ -505,10 +505,25 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 }
             }
 
-            if (!found && sortedCwts.length > 0 && sortedBooms.length > 0) { 
-                bestCwt = sortedCwts[sortedCwts.length - 1];
-                bestBoom = sortedBooms[sortedBooms.length - 1]; 
+            // PASSE 4 : ROUE DE SECOURS -> Si surcharge absolue, on bloque sur la meilleure configuration possible (pour éviter le saut de flèche)
+            if (!found) {
+                let maxFallbackCap = 0;
+                for (const cwt of sortedCwts) {
+                    for (const boom of sortedBooms) {
+                        if (boom <= inputDist) continue; 
+                        const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
+                        if (tipH < inputHeight) continue; 
+
+                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
+                        if (cap > maxFallbackCap) {
+                            maxFallbackCap = cap;
+                            bestCwt = cwt;
+                            bestBoom = boom;
+                        }
+                    }
+                }
             }
+
             if (bestCwt && bestCwt !== selectedCwt) { setSelectedCwt(bestCwt); }
             if (bestBoom && bestBoom !== selectedBoomLen) { setSelectedBoomLen(bestBoom); }
         }
@@ -601,7 +616,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
     const safeLoad = Math.floor(allowedLoad); 
     
-    const sliderMaxMass = absoluteMaxCapAtDist > 0 ? absoluteMaxCapAtDist : Math.max(inputLoad, 1000);
+    // Le slider de la charge s'arrête à (Capacité Max Absolue - Poids des accessoires)
+    const sliderMaxMass = absoluteMaxCapAtDist > 0 ? Math.max(0, absoluteMaxCapAtDist - accessoryMassKg) : Math.max(inputLoad, 1000);
 
     const tipHeight = useMemo(() => {
         if (!machine) return 10;
@@ -658,8 +674,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 statusSubMessage = `Aucune capacité définie à cette portée. Veuillez augmenter la portée à ${targetReach} m.`;
             } else { statusSubMessage = "Aucune capacité définie à cette portée. Veuillez réduire la portée."; }
         } else if (totalMass > safeLoad) {
-            statusMessage = "Capacité dépassée";
-            statusSubMessage = `Réduisez la masse (Max autorisé : ${(safeLoad/1000).toFixed(2)} t).`;
+            statusMessage = "Surcharge détectée";
+            statusSubMessage = `La masse totale (${(totalMass/1000).toFixed(2)} t) dépasse la capacité de la grue (${(safeLoad/1000).toFixed(2)} t). Avez-vous déduit les accessoires de la charge ?`;
         }
     } else if (is80PercentWarning) {
         // NOUVEAU THÈME ALERTE > 80% (Remplace l'angle)
@@ -756,7 +772,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         <div className="space-y-6">
                             
                             <CustomRange label="Portée (m)" value={inputDist} min={absoluteMinReach} max={machine?.maxReach > 0 ? machine.maxReach : 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
-                            <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={machine?.category === 'telehandler' ? 0.01 : 0.05} unit="t" maxLabel={`Max absolu à cette portée: ${sliderMaxMass/1000}t`} onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
+                            <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={machine?.category === 'telehandler' ? 0.01 : 0.05} unit="t" maxLabel={`Capacité Grue (Accessoires inclus): ${(absoluteMaxCapAtDist/1000).toFixed(3)}t`} onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
                             <CustomRange label="Hauteur Levage" value={inputHeight} min={0} max={(machine?.maxHeight ?? 0) + 5} step={0.5} unit="m" onChange={(e) => setInputHeight(parseFloat(e.target.value))} />
 
                             {machine && (machine.mode === 'multi_chart' || (machine.hasTools && machine.tools && machine.tools.length > 0)) && (
