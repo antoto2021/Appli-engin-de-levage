@@ -598,14 +598,17 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         return 0;
     }, [machine, selectedTool]);
 
-    // d) Masse Totale
-    const totalMass = useMemo(() => {
+    // d) Somme totale des accessoires (indispensable pour brider le slider)
+    const accessoryMassKg = useMemo(() => {
         if (machine?.category === 'telehandler') {
-            return inputLoad + telehandlerToolMassKg;
+            return telehandlerToolMassKg;
         } else {
-            return inputLoad + (currentMoufle * 1000) + slingsMassKg;
+            return (currentMoufle * 1000) + slingsMassKg;
         }
-    }, [machine, inputLoad, telehandlerToolMassKg, currentMoufle, slingsMassKg]);
+    }, [machine, telehandlerToolMassKg, currentMoufle, slingsMassKg]);
+
+    // Masse Totale finale
+    const totalMass = inputLoad + accessoryMassKg;
 
     // e) Variable d'affichage pour la dernière bulle (Élingues ou Accessoire)
     const displayAccessoryMassT = machine?.category === 'telehandler' 
