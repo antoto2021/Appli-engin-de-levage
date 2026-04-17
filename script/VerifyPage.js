@@ -344,6 +344,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
     const [selectedCwt, setSelectedCwt] = useState(null);
     const [selectedTool, setSelectedTool] = useState(null);
+    const [selectedPlate, setSelectedPlate] = useState(1);
     
     const [isAutoConfig, setIsAutoConfig] = useState(true); 
     
@@ -651,6 +652,29 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     // --- ALERTE > 80% ---
     const is80PercentWarning = isSafe && usagePercent > 80;
 
+    // --- 3. CALCUL DE LA PORTANCE DU SOL (Sprint 3) ---
+    const groundPressureData = useMemo(() => {
+        if (!machine || machine.category === 'telehandler') return null;
+
+        // 1. Masse système = Grue à vide + Contrepoids sélectionné + (Charge + Moufle + Elingues)
+        const ballastMass = selectedCwt ? parseFloat(selectedCwt) : 0;
+        const totalSystemMassT = (machine.machineMass || 0) + ballastMass + (totalMass / 1000);
+
+        // 2. Rmax Théorique (Centré) vs Réaliste (Pire cas)
+        const rMaxCentered = totalSystemMassT / 4;
+        const rMaxWorstCase = totalSystemMassT * 0.75;
+        
+        // 3. Pression sous le patin
+        const plateSurface = selectedPlate * selectedPlate;
+        const pressureWorstCase = rMaxWorstCase / plateSurface;
+
+        return {
+            rMaxCentered,
+            rMaxWorstCase,
+            pressureWorstCase
+        };
+    }, [machine, totalMass, selectedCwt, selectedPlate]);
+
     // --- GESTION DYNAMIQUE DES MESSAGES ET DES COULEURS ---
     let statusMessage = "Configuration conforme";
     let statusSubMessage = "Le levage peut être effectué en sécurité.";
@@ -807,6 +831,59 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                                 ⚠️ Si déploiement maximal impossible (calage intermédiaire), réaliser l’adéquation de levage à la main.
                                             </p>
                                         </div>
+                                    )}
+
+                                    {/* 1.5 BLOCS PORTANCE DU SOL */}
+                                    {machine.category !== 'telehandler' && groundPressureData && (
+                                        <>
+                                            {/* CHOIX DES PLAQUES DE RÉPARTITION */}
+                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">
+                                                    Plaques de répartition (m)
+                                                </label>
+                                                <div className="flex gap-2">
+                                                    {[1, 1.5, 2].map(size => (
+                                                        <button 
+                                                            key={size} 
+                                                            onClick={() => setSelectedPlate(size)}
+                                                            className={`flex-1 py-1 text-xs font-bold rounded border transition-all ${selectedPlate === size ? 'bg-[#004e98] text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-200'}`}
+                                                        >
+                                                            {size}x{size}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* AFFICHAGE DES DESCENTES DE CHARGE */}
+                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                <label className="text-[11px] font-black uppercase text-[#004e98] mb-2 flex items-center gap-2">
+                                                    PORTANCE DU SOL MINIMALE REQUISE
+                                                </label>
+                                                
+                                                <div className="space-y-2 mb-3 pb-3 border-b border-slate-200">
+                                                    <div className="flex justify-between items-end">
+                                                        <span className="text-[10px] text-slate-500 font-bold uppercase">Rmax (Charge centrée - Idéal) :</span>
+                                                        <span className="text-sm font-bold text-slate-700">{groundPressureData.rMaxCentered.toFixed(2)} t/patin</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-end">
+                                                        <span className="text-[10px] text-slate-500 font-bold uppercase">Rmax (Pire cas - 75% Mtotale) :</span>
+                                                        <span className="text-sm font-black text-slate-800">{groundPressureData.rMaxWorstCase.toFixed(2)} t/patin</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="text-xs text-[#004e98] font-bold">Pression sous patin :</span>
+                                                    <span className="text-2xl font-black text-red-600">
+                                                        {groundPressureData.pressureWorstCase.toFixed(2)} <span className="text-sm font-bold">t/m²</span>
+                                                    </span>
+                                                </div>
+                                                
+                                                <p className="text-[10px] text-red-600 font-bold italic leading-tight mt-2 flex items-start gap-1">
+                                                    <span>⚠️</span>
+                                                    <span>Vérifier impérativement que la résistance de votre sol est supérieure à {groundPressureData.pressureWorstCase.toFixed(2)} t/m² avant le levage.</span>
+                                                </p>
+                                            </div>
+                                        </>
                                     )}
 
                                     {/* 2. BLOC MASSE TOTALE */}
