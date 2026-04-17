@@ -795,7 +795,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     </div>
                     
                     <div id="tour-sliders" className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Calcul d'Adéquation</h3>
+                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Paramètres du levage</h3>
                         <div className="space-y-6">
                             
                             <CustomRange label="Portée (m)" value={inputDist} min={absoluteMinReach} max={machine?.maxReach > 0 ? machine.maxReach : 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
@@ -806,8 +806,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
                                     
                                     {/* TITRE ET BOUTON AUTO */}
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="font-bold text-slate-700 uppercase tracking-wide text-xs">Configuration de l'engin</h4>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                            <span>⚙️</span> Configuration de l'engin
+                                        </h3>
                                         {machine.mode === 'multi_chart' && (
                                             <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
                                                 {isAutoConfig ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
@@ -873,9 +875,14 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
                                                 <div className="flex justify-between items-baseline">
                                                     <span className="text-xs text-[#004e98] font-bold">Pression sous patin :</span>
-                                                    <span className="text-2xl font-black text-red-600">
-                                                        {groundPressureData.pressureWorstCase.toFixed(2)} <span className="text-sm font-bold">t/m²</span>
-                                                    </span>
+                                                    <div className="text-right">
+                                                        <span className="text-2xl font-black text-red-600">
+                                                            {groundPressureData.pressureWorstCase.toFixed(2)} <span className="text-sm font-bold">t/m²</span>
+                                                        </span>
+                                                        <span className="text-sm font-bold text-red-500 ml-2">
+                                                            (soit {(groundPressureData.pressureWorstCase * 0.00981).toFixed(3)} MPa)
+                                                        </span>
+                                                    </div>
                                                 </div>
                                                 
                                                 <p className="text-[10px] text-red-600 font-bold italic leading-tight mt-2 flex items-start gap-1">
@@ -894,7 +901,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                                 ? "Masse Totale (Charge + Accessoire)" 
                                                 : "Masse Totale (Charge + Moufle + Élingues)"}
                                         </label>
-                                        <div className="text-1xl font-black text-[#004e98]">
+                                        <div className="text-1.5xl font-black text-[#004e98]">
                                             {(totalMass / 1000).toFixed(2)} <span className="text-sm font-bold text-slate-500">t</span>
                                         </div>
                                     </div>
