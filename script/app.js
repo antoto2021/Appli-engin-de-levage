@@ -544,8 +544,11 @@ window.deleteMachineFromAdmin = (id) => {
 
 window.downloadAdminTemplate = () => {
     const wb = XLSX.utils.book_new(); 
+
+    // --- 1. ONGLET(S) ABAQUE(S) ---
     const sheets = [ { name: "0t", multiplier: 0.5 }, { name: "12t", multiplier: 0.8 }, { name: "24t", multiplier: 1.0 } ]; 
     const baseData = [ ["Portée(m) \\ Flèche(m)", 10, 20, 30, 40], [3, 50, 40, null, null], [10, 20, 18, 15, 12], [30, null, null, 4, 3] ];
+    
     sheets.forEach(sheet => { 
         const data = baseData.map((row, i) => { 
             if (i === 0) return row; 
@@ -553,8 +556,38 @@ window.downloadAdminTemplate = () => {
         }); 
         const ws = XLSX.utils.aoa_to_sheet(data); 
         XLSX.utils.book_append_sheet(wb, ws, sheet.name); 
-    }); 
-    XLSX.writeFile(wb, "Modele_Import_MultiCwt.xlsx");
+    });
+
+    // --- 2. ONGLET MOUFLES ---
+    const wsMouflesData = [
+        ["Capacité Max (t)", "Masse du moufle (t)"],
+        [10, 0.15],
+        [32, 0.35],
+        [60, 0.65]
+    ];
+    const wsMoufles = XLSX.utils.aoa_to_sheet(wsMouflesData);
+    XLSX.utils.book_append_sheet(wb, wsMoufles, "Moufles");
+
+    // --- 3. ONGLET CONFIGURATION DE L'ENGIN ---
+    const wsConfigData = [
+        ["Surface de calage (m²)", 36],
+        ["Masse de l'engin à vide (t)", 60]
+    ];
+    const wsConfig = XLSX.utils.aoa_to_sheet(wsConfigData);
+    XLSX.utils.book_append_sheet(wb, wsConfig, "Configuration de l'engin");
+
+    // --- 4. ONGLET ACCESSOIRES (Pour les télescopiques) ---
+    const wsAccessoiresData = [
+        ["Nom de l'accessoire", "Masse (t)"],
+        ["Fourches standard", 0.15],
+        ["Potence 2t", 0.25],
+        ["Godet 1000L", 0.40]
+    ];
+    const wsAccessoires = XLSX.utils.aoa_to_sheet(wsAccessoiresData);
+    XLSX.utils.book_append_sheet(wb, wsAccessoires, "Accessoires");
+
+    // Génération et téléchargement final
+    XLSX.writeFile(wb, "Modele_Import_SafeHoist.xlsx");
 };
 
 window.handleAdminExcelUpload = (e) => {
