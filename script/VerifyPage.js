@@ -901,7 +901,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                                 ? "Masse Totale (Charge + Accessoire)" 
                                                 : "Masse Totale (Charge + Moufle + Élingues)"}
                                         </label>
-                                        <div className="text-1.5xl font-black text-[#004e98]">
+                                        <div className="text-2xl font-black text-[#004e98]">
                                             {(totalMass / 1000).toFixed(2)} <span className="text-sm font-bold text-slate-500">t</span>
                                         </div>
                                     </div>
