@@ -642,17 +642,21 @@ window.handleAdminExcelUpload = (e) => {
                 }
             }
 
-            // --- LECTURE DE LA CONFIGURATION (SURFACE DE CALAGE) ---
+            // --- LECTURE DE LA CONFIGURATION (SURFACE DE CALAGE & MASSE ENGIN) ---
             let stabilizerSurface = 0;
+            let machineMass = 0;
             const configSheetName = wb.SheetNames.find(n => n.toLowerCase().includes('configuration'));
             
             if (configSheetName) {
                 const wsConfig = wb.Sheets[configSheetName];
-                // On cherche "Surface de calage" en A1 et la valeur en B1
+                
+                // Surface de calage en B1
                 const surfaceVal = parseFloat(wsConfig['B1']?.v);
-                if (!isNaN(surfaceVal)) {
-                    stabilizerSurface = surfaceVal;
-                }
+                if (!isNaN(surfaceVal)) stabilizerSurface = surfaceVal;
+            
+                // Masse de l'engin à vide en B2
+                const massVal = parseFloat(wsConfig['B2']?.v);
+                if (!isNaN(massVal)) machineMass = massVal;
             }
 
             // --- CRÉATION DE LA MACHINE ---
@@ -663,7 +667,8 @@ window.handleAdminExcelUpload = (e) => {
                 boomLengths: boomLengths, charts: charts, moufles: moufles, 
                 hasTools: tools.length > 0, tools: tools.length > 0 ? tools : null, toolsMass: toolsMass, 
                 createdAt: new Date().toISOString(), isCustom: true,
-                stabilizerSurface: stabilizerSurface // Stocké en m²
+                stabilizerSurface: stabilizerSurface,
+                machineMass: machineMass,
             };
             
             // Appel de la fonction React via le pont créé
