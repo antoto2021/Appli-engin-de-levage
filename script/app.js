@@ -587,7 +587,7 @@ window.downloadAdminTemplate = () => {
     XLSX.utils.book_append_sheet(wb, wsAccessoires, "Accessoires");
 
     // Génération et téléchargement final
-    XLSX.writeFile(wb, "Modele_Import_SafeHoist.xlsx");
+    XLSX.writeFile(wb, "Modele_Import_Grue.xlsx");
 };
 
 window.handleAdminExcelUpload = (e) => {
