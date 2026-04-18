@@ -675,9 +675,10 @@ window.handleAdminExcelUpload = (e) => {
                 }
             }
 
-            // --- LECTURE DE LA CONFIGURATION (SURFACE DE CALAGE & MASSE ENGIN) ---
+            // --- LECTURE DE LA CONFIGURATION (SURFACE DE CALAGE, MASSE ENGIN & URL FICHE TECHNIQUE) ---
             let stabilizerSurface = 0;
             let machineMass = 0;
+            let techSheetUrl = "";
             const configSheetName = wb.SheetNames.find(n => n.toLowerCase().includes('configuration'));
             
             if (configSheetName) {
@@ -690,6 +691,10 @@ window.handleAdminExcelUpload = (e) => {
                 // Masse de l'engin à vide en B2
                 const massVal = parseFloat(wsConfig['B2']?.v);
                 if (!isNaN(massVal)) machineMass = massVal;
+
+                // URL Fiche Technique en B3
+                const urlVal = wsConfig['B3']?.v;
+                if (urlVal) techSheetUrl = urlVal;
             }
 
             // --- CRÉATION DE LA MACHINE ---
@@ -702,6 +707,7 @@ window.handleAdminExcelUpload = (e) => {
                 createdAt: new Date().toISOString(), isCustom: true,
                 stabilizerSurface: stabilizerSurface,
                 machineMass: machineMass,
+                techSheetUrl: techSheetUrl,
             };
             
             // Appel de la fonction React via le pont créé
