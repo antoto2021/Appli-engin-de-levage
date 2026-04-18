@@ -784,8 +784,13 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     <FileText size={18} className="text-[#004e98]"/>
                                     <span className="text-sm font-bold">Documentation Constructeur</span>
                                 </div>
-                                <button 
-                                    onClick={() => alert("La fiche PDF de " + machine.name + " s'ouvrira ici. (Sera connecté au Sprint 4)")}
+                                <button onClick={() => {
+                                        if (machine.techSheetUrl) {
+                                            window.open(machine.techSheetUrl, '_blank');
+                                        } else {
+                                            alert("Aucune fiche technique n'est renseignée pour cet engin dans la base de données.");
+                                        }
+                                    }}
                                     className="w-full bg-white hover:bg-slate-100 text-[#004e98] font-bold py-2 px-4 rounded-lg border border-slate-300 shadow-sm transition flex items-center justify-center gap-2"
                                 >
                                     <Download size={16} /> Fiche Technique (PDF)
