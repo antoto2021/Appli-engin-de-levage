@@ -2,69 +2,108 @@ const exportCraneExcel = (machine) => {
     if (!machine) return;
     const wb = XLSX.utils.book_new();
 
+    // Nettoyeur de nom d'onglet (max 31 chars, pas de caractères interdits : \ / ? * [ ])
+    const cleanSheetName = (name) => {
+        return name.toString()
+            .replace(/[\\/:\?\*\[\]]/g, "_")
+            .substring(0, 31);
+    };
+
     const createSheetForData = (chartData, sheetName) => {
          let ws_data = [];
-         
-         // 1. Ajout du Titre (Nom de la machine)
-         ws_data.push([`Abaque : ${machine.name}`, "", ""]);
-         // 2. Ajout d'une ligne vide pour aérer la présentation
-         ws_data.push([]); 
-
-         const boomLengths = machine.boomLengths;
-         const header = ["Portée (m)", ...boomLengths.map(b => `Flèche ${b}m`)];
+         ws_data.push([`Abaque : ${machine.name}`]);
+         const boomLengths = machine.boomLengths || [];
+         const header = ["Portée(m) \\ Flèche(m)", ...boomLengths];
          ws_data.push(header);
          
          let allRadii = new Set();
-         boomLengths.forEach(len => { if (chartData[len]?.std) { chartData[len].std.forEach(p => allRadii.add(p.d)); } });
+         boomLengths.forEach(len => { 
+             if (chartData && chartData[len]?.std) { 
+                 chartData[len].std.forEach(p => allRadii.add(p.d)); 
+             } 
+         });
          const sortedRadii = Array.from(allRadii).sort((a,b) => a - b);
+         
          sortedRadii.forEach(r => {
              let row = [r];
              boomLengths.forEach(len => {
-                 const points = chartData[len]?.std || [];
+                 const points = chartData ? (chartData[len]?.std || []) : [];
                  const p = points.find(pt => Math.abs(pt.d - r) < 0.1);
-                 row.push(p ? p.l : ""); 
+                 // Correction format : on utilise p.l brut pour éviter le 0.134
+                 row.push(p ? p.l : null); 
              });
              ws_data.push(row);
          });
          
          const ws = XLSX.utils.aoa_to_sheet(ws_data);
-
-         // 3. Fusion des cellules A1, B1 et C1
-         // s = start (début), e = end (fin), r = row (ligne), c = col (colonne). (L'index commence à 0)
-         if(!ws['!merges']) ws['!merges'] = [];
-         ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } });
-
-         XLSX.utils.book_append_sheet(wb, ws, sheetName);
+         XLSX.utils.book_append_sheet(wb, ws, cleanSheetName(sheetName));
     };
 
+    // 1. ABAQUES
     if (machine.mode === 'multi_chart') {
-        if(machine.hasCounterweights) { machine.counterweights.forEach(cwt => { createSheetForData(machine.charts[cwt], cwt); }); } 
-        else { createSheetForData(machine.charts, "Abaque"); }
-    } else if (machine.mode === 'zone' || machine.mode === 'zone_multi_tool') {
-        let ws_data = [
-            [`Abaque : ${machine.name}`, "", ""], // Ligne 1 (Titre)
-            [], // Ligne 2 (Vide)
-            ["Zone ID", "Charge Max (kg)"] // Ligne 3 (Entêtes)
-        ];
-        
-        let zonesToExport = machine.zones || [];
-        if (machine.mode === 'zone_multi_tool' && machine.tools?.length > 0) {
-            zonesToExport = machine.charts[machine.tools[0]].zones; 
+        if(machine.hasCounterweights && machine.counterweights) { 
+            machine.counterweights.forEach(cwt => { 
+                createSheetForData(machine.charts[cwt], `${cwt}t`); 
+            }); 
+        } else { 
+            createSheetForData(machine.charts, "Abaque"); 
         }
-
-        zonesToExport.forEach(z => { ws_data.push([z.id, z.load]); });
-        const ws = XLSX.utils.aoa_to_sheet(ws_data);
-
-        // Fusion des cellules A1:C1 pour le mode zone
-        if(!ws['!merges']) ws['!merges'] = [];
-        ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } });
-
-        XLSX.utils.book_append_sheet(wb, ws, "Zones");
+    } else if (machine.mode === 'zone' || machine.mode === 'zone_multi_tool') {
+        let ws_data = [[`Abaque : ${machine.name}`], ["Zone / Outil", "Capacité (t)"]];
+        let zones = machine.zones || [];
+        if (machine.mode === 'zone_multi_tool' && machine.tools?.length > 0) {
+            const firstTool = machine.tools[0];
+            if (machine.charts[firstTool]) zones = machine.charts[firstTool].zones;
+        }
+        zones.forEach(z => { ws_data.push([z.id, z.load]); });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ws_data), "Abaque");
     }
-    
-    // Nettoyage du nom de fichier pour éviter les caractères spéciaux
+
+    // 2. MOUFLES (GRUES UNIQUEMENT)
+    if (machine.category !== 'telehandler') {
+        const wsMouflesData = [["Capacité Max (t)", "Masse du moufle (t)"]];
+        if (machine.moufles && machine.moufles.length > 0) {
+            machine.moufles.forEach(m => wsMouflesData.push([m.maxLoad, m.mass]));
+        } else {
+            wsMouflesData.push([10, 0.35], [32, 0.65], [60, 1.00]); 
+        }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wsMouflesData), "Moufles");
+    }
+
+    // 3. ONGLET CONFIGURATION DE L'ENGIN
+    let surfaceToExport = machine.stabilizerSurface || "";
+    if (typeof surfaceToExport === 'number') {
+        surfaceToExport = parseFloat(surfaceToExport.toFixed(1)); // Arrondi garanti
+    }
+
+    const wsConfigData = [
+        ["Surface de calage (m²)", surfaceToExport],
+        ["Masse de l'engin à vide (t)", machine.machineMass || ""],
+        ["URL Fiche Technique (Lien Web)", machine.techSheetUrl || ""]
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wsConfigData), "Configuration de l'engin");
+
+    // 4. ELINGUES OU ACCESSOIRES
+    if (machine.category === 'telehandler') {
+        const wsAccData = [["Nom de l'accessoire", "Masse (t)"]];
+        if (machine.toolsMass) {
+            Object.entries(machine.toolsMass).forEach(([name, mass]) => wsAccData.push([name, mass]));
+        }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wsAccData), "Accessoires");
+    } else {
+        const wsSlingData = [["Jusqu'à (kg)", "Masse des élingues (kg)"]];
+        if (typeof CRANE_SLINGS_TABLE !== 'undefined') {
+            CRANE_SLINGS_TABLE.forEach(s => {
+                // FIX CORRUPTION : Remplacement de Infinity par une chaîne "Max"
+                const limit = s.upTo === Infinity ? "Max" : s.upTo;
+                wsSlingData.push([limit, s.mass]);
+            });
+        }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(wsSlingData), "Elingues");
+    }
+
     const safeName = machine.name.replace(/[^a-zA-Z0-9]/g, '_');
-    XLSX.writeFile(wb, `${safeName}_abaque_${formatDateTime()}.xlsx`);
+    XLSX.writeFile(wb, `Abaque_${safeName}.xlsx`);
 };
 
 const generatePredimPDF = (machine, inputLoad, inputDist, inputHeight, isSafe, safeLoad, currentCwt, selectedBoomLen, currentMoufle, chantierName) => {
