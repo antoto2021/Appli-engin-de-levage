@@ -641,7 +641,26 @@ window.handleAdminExcelUpload = (e) => {
                  return sheetCharts;
             };
 
-            if (useCwtMode) { wb.SheetNames.forEach(sheetName => { const cwtData = parseSheet(sheetName); if(cwtData && sheetName.toLowerCase() !== 'moufles') { counterweights.push(sheetName); charts[sheetName] = cwtData; } }); } else { charts = parseSheet(wb.SheetNames[0]); }
+            // Liste des mots-clés d'onglets à IGNORER lors de la lecture des abaques
+            const ignoreKeywords = ['moufle', 'accessoire', 'accessoires', 'outil', 'config', 'configuration', 'elingue', 'elingues'];
+            
+            if (useCwtMode) { 
+                wb.SheetNames.forEach(sheetName => { 
+                    const lowerName = sheetName.toLowerCase();
+                    // On vérifie si le nom de l'onglet contient l'un des mots-clés à ignorer
+                    const isIgnored = ignoreKeywords.some(kw => lowerName.includes(kw));
+                    
+                    if (!isIgnored) {
+                        const cwtData = parseSheet(sheetName); 
+                        if(cwtData) { 
+                            counterweights.push(sheetName); 
+                            charts[sheetName] = cwtData; 
+                        }
+                    } 
+                }); 
+            } else { 
+                charts = parseSheet(wb.SheetNames[0]); 
+            }
             const boomLengths = Array.from(boomLengthsGlobal).sort((a,b)=>a-b);
             if (boomLengths.length === 0) throw new Error("Aucune colonne de flèche valide trouvée.");
             
@@ -685,9 +704,9 @@ window.handleAdminExcelUpload = (e) => {
             if (configSheetName) {
                 const wsConfig = wb.Sheets[configSheetName];
                 
-                // Surface de calage en B1
+                // Surface de calage en B1 (Avec arrondi à 1 chiffre après la virgule)
                 const surfaceVal = parseFloat(wsConfig['B1']?.v);
-                if (!isNaN(surfaceVal)) stabilizerSurface = surfaceVal;
+                if (!isNaN(surfaceVal)) stabilizerSurface = parseFloat(surfaceVal.toFixed(1));
             
                 // Masse de l'engin à vide en B2
                 const massVal = parseFloat(wsConfig['B2']?.v);
