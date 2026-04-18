@@ -572,6 +572,7 @@ window.downloadAdminTemplate = () => {
     const wsConfigData = [
         ["Surface de calage (m²)", 36],
         ["Masse de l'engin à vide (t)", 60]
+        ["URL Fiche Technique (Lien Web)", "https://assets-cdn.liebherr.com/versions/75f1af54-977e-4d86-beb8-81556f2d589e/original/"] 
     ];
     const wsConfig = XLSX.utils.aoa_to_sheet(wsConfigData);
     XLSX.utils.book_append_sheet(wb, wsConfig, "Configuration de l'engin");
