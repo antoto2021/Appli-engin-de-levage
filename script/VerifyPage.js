@@ -34,26 +34,22 @@ const CustomRange = ({ label, value, min, max, step, onChange, unit = "", maxLab
 const DbManagerModal = ({ machines, onClose, onDelete, onReset, onImport }) => {
     // --- NOUVELLE FONCTION D'EXPORT FORMATÉ ---
     const downloadJson = () => {
-        // 1. On convertit en JSON avec des indentations (2 espaces)
         let jsonStr = JSON.stringify(machines, null, 2);
 
-        // 2. On compresse les coordonnées des Grues { "d": X, "l": Y } sur une seule ligne
         jsonStr = jsonStr.replace(/\{\s*"d":\s*([-\d.]+),\s*"l":\s*([-\d.]+)\s*\}/g, '{ "d": $1, "l": $2 }');
-
-        // 3. On compresse les coordonnées des Manitous [X, Y] sur une seule ligne
+        jsonStr = jsonStr.replace(/\{\s*"maxLoad":\s*([-\d.]+),\s*"mass":\s*([-\d.]+)\s*\}/g, '{ "maxLoad": $1, "mass": $2 }');
         jsonStr = jsonStr.replace(/\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]/g, '[$1, $2]');
 
-        // 4. On force certains petits tableaux à tenir sur une seule ligne au lieu d'un élément par ligne
-        const arraysToCompress = ["boomLengths", "counterweights", "tools", "points"];
+        const arraysToCompress = ["boomLengths", "counterweights", "tools", "points", "std", "moufles"];
         arraysToCompress.forEach(key => {
             const regex = new RegExp(`"${key}":\\s*\\[([\\s\\S]*?)\\]`, 'g');
             jsonStr = jsonStr.replace(regex, (match, content) => {
-                // Remplace les sauts de ligne à l'intérieur du tableau par de simples espaces
                 return `"${key}": [` + content.replace(/\s*\n\s*/g, ' ').trim() + `]`;
             });
         });
 
-        // 5. Création et téléchargement du fichier (Méthode Blob plus robuste pour les gros fichiers)
+        jsonStr = jsonStr.replace(/\{\s*"std":\s*(\[[^\]]*\])\s*\}/g, '{ "std": $1 }');
+
         const blob = new Blob([jsonStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const downloadAnchorNode = document.createElement('a'); 
@@ -75,37 +71,71 @@ const DbManagerModal = ({ machines, onClose, onDelete, onReset, onImport }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 animate-slide-up">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up border-t-8 border-[#004e98]">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold flex items-center gap-2"><Database className="text-[#004e98]"/> Gestion Base de Données Locale</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-xl">&times;</button>
+                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                        <Database size={28} className="text-[#004e98]"/> Gérer les machines locales
+                    </h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-3xl">&times;</button>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-blue-100 transition" onClick={downloadJson}>
-                        <Save size={32} className="text-blue-600 mb-2"/>
-                        <span className="font-bold text-blue-800">Sauvegarder BDD</span>
-                        <span className="text-xs text-blue-600">Exporter en .JSON</span>
-                    </div>
-                    <label className="p-4 bg-emerald-50 rounded-lg border border-emerald-100 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-emerald-100 transition">
-                        <FileJson size={32} className="text-emerald-600 mb-2"/>
-                        <span className="font-bold text-emerald-800">Restaurer BDD</span>
-                        <span className="text-xs text-emerald-600">Importer un .JSON</span>
-                        <input type="file" className="hidden" accept=".json" onChange={handleFileImport} />
+
+                {/* --- SECTION EXPORT / IMPORT --- */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                    {/* Bouton Export JSON (Restauré) */}
+                    <button 
+                        onClick={downloadJson}
+                        className="p-4 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl flex flex-col items-center gap-2 transition group"
+                    >
+                        <Download size={32} className="text-[#004e98] group-hover:scale-110 transition-transform"/>
+                        <span className="font-bold text-[#004e98]">Exporter en JSON</span>
+                        <span className="text-[10px] text-blue-500 text-center italic">Pour copier les données dans la BDD fixe</span>
+                    </button>
+
+                    <label className="p-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl flex flex-col items-center gap-2 cursor-pointer transition group">
+                        <Upload size={32} className="text-emerald-600 group-hover:scale-110 transition-transform"/>
+                        <span className="font-bold text-emerald-800">Restaurer / Importer</span>
+                        <input type="file" className="hidden" accept=".json" onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (evt) => {
+                                try {
+                                    const imported = JSON.parse(evt.target.result);
+                                    if (Array.isArray(imported)) onImport(imported);
+                                } catch (err) { alert("Erreur : Fichier JSON corrompu"); }
+                            };
+                            reader.readAsText(file);
+                        }} />
                     </label>
                 </div>
-                <div className="mb-4">
-                    <h4 className="font-bold text-slate-700 mb-2">Machines Locales ({machines.length})</h4>
-                    <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg">
-                        {machines.length === 0 ? ( <div className="p-4 text-center text-slate-400 italic">Aucune machine personnalisée.</div> ) : (
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 text-slate-500 font-bold sticky top-0"><tr><th className="p-3">Nom</th><th className="p-3">Type</th><th className="p-3 text-right">Action</th></tr></thead>
-                                <tbody className="divide-y divide-slate-100">
+
+                {/* --- LISTE DES MACHINES --- */}
+                <div className="mb-6">
+                    <h4 className="text-sm font-black text-slate-500 uppercase mb-3 tracking-widest">Engins en mémoire locale ({machines.length})</h4>
+                    <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-xl shadow-inner bg-slate-50">
+                        {machines.length === 0 ? (
+                            <div className="p-8 text-center text-slate-400 italic">Aucun engin chargé localement.</div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-white border-b border-slate-200 sticky top-0">
+                                    <tr>
+                                        <th className="p-3 text-xs font-black text-slate-400 uppercase">Nom de l'engin</th>
+                                        <th className="p-3 text-right text-xs font-black text-slate-400 uppercase">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                                     {machines.map(m => (
-                                        <tr key={m.id} className="hover:bg-slate-50">
-                                            <td className="p-3 font-medium text-slate-700">{m.name}</td>
-                                            <td className="p-3 text-slate-500">{m.category}</td>
-                                            <td className="p-3 text-right"><button onClick={() => onDelete(m.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button></td>
+                                        <tr key={m.id} className="border-b border-slate-100 hover:bg-white transition-colors">
+                                            <td className="p-3">
+                                                <span className="font-bold text-slate-700 block">{m.name}</span>
+                                                <span className="text-[10px] text-slate-400 uppercase">{m.category}</span>
+                                            </td>
+                                            <td className="p-3 text-right">
+                                                <button onClick={() => onDelete(m.id)} className="text-red-500 hover:bg-red-50 font-bold py-1 px-3 rounded-lg border border-red-100 text-xs transition">
+                                                    Supprimer
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -113,9 +143,10 @@ const DbManagerModal = ({ machines, onClose, onDelete, onReset, onImport }) => {
                         )}
                     </div>
                 </div>
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                    <button onClick={onReset} className="px-4 py-2 text-red-600 text-sm font-bold hover:bg-red-50 rounded-lg transition">Tout effacer</button>
-                    <button onClick={onClose} className="px-6 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 transition">Fermer</button>
+
+                <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                    <button onClick={onReset} className="text-red-600 text-xs font-black hover:underline uppercase tracking-tighter">⚠️ Tout effacer</button>
+                    <button onClick={onClose} className="px-8 py-3 bg-slate-800 text-white font-black rounded-xl hover:bg-slate-900 transition shadow-lg">Fermer</button>
                 </div>
             </div>
         </div>
@@ -312,10 +343,10 @@ const GraphChart2D = ({ machine, inputDist, inputHeight, selectedBoomLen, select
                 <circle cx={hookX} cy={hookY} r="6" fill={statusFill} stroke="#0f172a" strokeWidth="1" />
                 
                 <text x={width/2} y={height-10} textAnchor="middle" fontSize="12" fontWeight="600" fill="#334155">Portée (m)</text>
-                <text x={15} y={height/2} textAnchor="middle" transform={`rotate(-90, 15, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
+                <text x={35} y={height/2} textAnchor="middle" transform={`rotate(-90, 35, ${height/2})`} fontSize="12" fontWeight="600" fill="#334155">Hauteur (m)</text>
             </svg>
 
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white/90 px-4 py-1.5 rounded-full border border-slate-300 text-sm font-bold text-slate-700 z-10 shadow-sm">
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-white/90 px-4 py-1.5 rounded-full border border-slate-300 text-xm font-bold text-slate-700 z-10 shadow-sm">
                 {machine.category === 'telehandler' 
                     ? "📍 Point d'origine : Devant les roues de l'engin"
                     : "📍 Point d'origine : Milieu de la cabine"}
@@ -652,7 +683,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     // --- ALERTE > 80% ---
     const is80PercentWarning = isSafe && usagePercent > 80;
 
-    // --- 3. CALCUL DE LA PORTANCE DU SOL (Sprint 3) ---
+    // --- 3. CALCUL DE LA PORTANCE DU SOL ---
     const groundPressureData = useMemo(() => {
         if (!machine || machine.category === 'telehandler') return null;
 
@@ -716,327 +747,247 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     }
     
     return (
-        <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
-            {/* On peut garder le DbManagerModal caché dans le code au cas où, 
-                mais l'appel se fera via l'admin HTML désormais */}
+        <div className="space-y-6 max-w-[1400px] mx-auto pb-12 animate-fade-in">
             {showDbManager && <DbManagerModal machines={localMachinesOnly} onClose={() => setShowDbManager(false)} onDelete={onDeleteLocal} onReset={onResetLocal} onImport={onImportLocal}/>}
             
             {isPredimModalOpen && (
                 <PredimModal 
-                    machine={machine}
-                    inputLoad={inputLoad}
-                    inputDist={inputDist}
+                    machine={machine} 
+                    inputLoad={totalMass} 
+                    inputDist={inputDist} 
                     inputHeight={inputHeight}
-                    isSafe={isSafe}
-                    safeLoad={safeLoad}
-                    currentCwt={selectedCwt}
+                    isSafe={isSafe} 
+                    safeLoad={safeLoad} 
+                    currentCwt={selectedCwt} 
                     selectedBoomLen={selectedBoomLen}
-                    currentMoufle={currentMoufle}
+                    currentMoufle={currentMoufle} 
                     onClose={() => setIsPredimModalOpen(false)}
                 />
             )}
 
-            <div id="tour-category-select" className="flex flex-wrap justify-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+            {/* HEADER : CHOIX DE LA FAMILLE */}
+            <div id="tour-category-select" className="flex flex-wrap justify-center gap-10 bg-white p-3 rounded-2xl border border-slate-200 shadow-md w-max mx-auto mb-8">
                 {[{id: 'telehandler', label: 'Engin Télescopique', icon: Truck}, {id: 'mobile_crane', label: 'Grue Mobile', icon: Move}, {id: 'crawler_crane', label: 'Grue Treillis', icon: Anchor}].map(cat => ( 
                     <button 
                         key={cat.id} 
                         onClick={() => handleCategoryChange(cat.id)} 
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${category === cat.id ? 'bg-[#004e98] text-white shadow-md' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}
+                        className={`flex items-center gap-8 px-4 py-2 rounded-lg font-black text-xm transition-all ${category === cat.id ? 'bg-[#004e98] text-white shadow-lg scale-500' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}
                     > 
-                        <cat.icon size={18} /> {cat.label} 
+                        {/* Augmentation de la taille de l'icone */}
+                        <cat.icon size={20} /> 
+                        {cat.label} 
                     </button> 
                 ))}
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* --- COLONNE DE GAUCHE --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* ========================================== */}
+                {/* COLONNE GAUCHE : LES INPUTS                */}
+                {/* ========================================== */}
                 <div className="lg:col-span-4 space-y-6">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-[#004e98]"></div>
-                        
-                        {/* CORRECTION : Suppression du bouton "Gérer Locale" pour protéger la BDD */}
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Truck size={18} className="text-[#004e98]"/> Choix de l'engin</h3>
-                        </div>
-                        
+                    
+                    {/* 1. CHOIX DE L'ENGIN */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-[#004e98]">
+                        <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2"><Truck size={25} className="text-[#004e98]"/> Choix de l'engin</h3>
                         <div id="tour-BDD" className="mb-4">
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Sélectionner dans la BDD</label>
-                            <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-sm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
-                                    {filteredMachines.map(m => ( 
-                                        <option key={m.id} value={m.id}> 
-                                            {m.name} {m.source === 'local' ? ` [Local - ${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : 'Ancien'}]` : ""} 
-                                        </option> 
-                                    ))}
+                            <select value={selectedMachineId || ''} onChange={(e) => setSelectedMachineId(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 text-xm font-semibold focus:ring-2 focus:ring-[#004e98] outline-none">
+                                {filteredMachines.map(m => (<option key={m.id} value={m.id}>{m.name} {m.source === 'local' ? ' 💾 (Perso)' : ''}</option>))}
                             </select>
                         </div>
-                        
                         {machine && (
-                            <div className="flex gap-2 mb-4">
-                                <button id="tour-Abaque-Excel" onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-2 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Abaque.xlsx</button>
-                                <button id="tour-pdf-btn" onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold py-2 px-2 rounded border border-red-200 flex items-center justify-center gap-1 transition-colors"><FileText size={14}/> Prédimensionnement</button>
-                            </div>
-                        )}
-                        
-                        {/* CORRECTION : Placement du NOUVEAU BOUTON FICHE TECHNIQUE ici ! */}
-                        {machine && (
-                            <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 flex flex-col items-center justify-center gap-3">
-                                <div className="flex items-center gap-2 text-slate-700">
-                                    <FileText size={18} className="text-[#004e98]"/>
-                                    <span className="text-sm font-bold">Documentation Constructeur</span>
+                            <div className="flex flex-col gap-3">
+                                <div className="flex gap-2">
+                                    <button id="tour-Abaque-Excel" onClick={() => exportCraneExcel(machine)} className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-bold py-2 px-2 rounded-lg border border-slate-200 flex items-center justify-center gap-1 transition"><FileText size={14}/> Abaque.xlsx</button>
+                                    <button id="tour-pdf-btn" onClick={() => setIsPredimModalOpen(true)} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-bold py-2 px-2 rounded-lg border border-red-200 flex items-center justify-center gap-1 transition"><FileText size={14}/> PDF Prédim.</button>
                                 </div>
-                                <button onClick={() => {
-                                        if (machine.techSheetUrl) {
-                                            window.open(machine.techSheetUrl, '_blank');
-                                        } else {
-                                            alert("Aucune fiche technique n'est renseignée pour cet engin dans la base de données.");
-                                        }
-                                    }}
-                                    className="w-full bg-white hover:bg-slate-100 text-[#004e98] font-bold py-2 px-4 rounded-lg border border-slate-300 shadow-sm transition flex items-center justify-center gap-2"
+                                <button onClick={() => { machine.techSheetUrl ? window.open(machine.techSheetUrl, '_blank') : alert("Aucune fiche technique n'est renseignée."); }}
+                                    className="w-full bg-white hover:bg-slate-50 text-[#004e98] text-sm font-bold py-2 px-4 rounded-lg border border-slate-300 shadow-sm transition flex items-center justify-center gap-2"
                                 >
-                                    <Download size={16} /> Fiche Technique (PDF)
+                                    <Download size={16} /> Fiche Technique Constructeur
                                 </button>
                             </div>
                         )}
                     </div>
                     
-                    <div id="tour-sliders" className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Calculator size={18} className="text-[#004e98]"/> Paramètres du levage</h3>
+                    {/* 2. PARAMÈTRES DU LEVAGE (SLIDERS) */}
+                    <div id="tour-sliders" className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-[#004e98]">
+                        <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2"><Calculator size={25} className="text-[#004e98]"/> Paramètres du levage</h3>
                         <div className="space-y-6">
-                            
                             <CustomRange label="Portée (m)" value={inputDist} min={absoluteMinReach} max={machine?.maxReach > 0 ? machine.maxReach : 50} step={currentStepDist} unit="m" onChange={(e) => setInputDist(parseFloat(e.target.value))} />
-                            <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={machine?.category === 'telehandler' ? 0.01 : 0.05} unit="t" maxLabel={`${machine?.category === 'telehandler' ? 'Capacité Engin' : 'Capacité Grue'} (Accessoires inclus): ${(absoluteMaxCapAtDist/1000).toFixed(3)}t`} onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
-                            <CustomRange label="Hauteur Levage" value={inputHeight} min={0} max={(machine?.maxHeight ?? 0) + 5} step={0.5} unit="m" onChange={(e) => setInputHeight(parseFloat(e.target.value))} />
+                            <CustomRange label="Masse de la Charge (t)" value={inputLoad/1000} min={0} max={sliderMaxMass/1000} step={machine?.category === 'telehandler' ? 0.01 : 0.05} unit="t" maxLabel={`Capacité Max: ${(absoluteMaxCapAtDist/1000).toFixed(2)}t`} onChange={(e) => setInputLoad(Math.round(parseFloat(e.target.value)*1000))} />
+                            <CustomRange label="Hauteur Levage (m)" value={inputHeight} min={0} max={(machine?.maxHeight ?? 0) + 5} step={0.5} unit="m" onChange={(e) => setInputHeight(parseFloat(e.target.value))} />
+                        </div>
+                    </div>
 
-                            {machine && (machine.mode === 'multi_chart' || (machine.hasTools && machine.tools && machine.tools.length > 0)) && (
-                                <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
-                                    
-                                    {/* TITRE ET BOUTON AUTO */}
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                            <span>⚙️</span> Configuration de l'engin
-                                        </h3>
-                                        {machine.mode === 'multi_chart' && (
-                                            <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors flex items-center gap-1 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
-                                                {isAutoConfig ? <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</span> : "MANUEL"}
-                                            </button>
-                                        )}
-                                    </div>
+                    {/* 3. CONFIGURATION DE L'ENGIN (AUTO/MANUEL) */}
+                    {machine && (machine.mode === 'multi_chart' || (machine.hasTools && machine.tools && machine.tools.length > 0)) && (
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 border-l-4 border-l-[#004e98]">
+                            <div className="flex justify-between items-center mb-1">
+                                <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2"><Settings size={25} className="text-[#004e98]"/> Configuration</h3>
+                                {machine.mode === 'multi_chart' && (
+                                    <button onClick={() => setIsAutoConfig(!isAutoConfig)} className={`text-[10px] font-bold px-3 py-1.5 rounded-md border transition-colors flex items-center gap-1.5 ${isAutoConfig ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}>
+                                        {isAutoConfig ? <><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> AUTO (ON)</> : "MANUEL"}
+                                    </button>
+                                )}
+                            </div>
 
-                                    {/* 1. BLOC STABILISATEURS (UNIQUEMENT GRUES) */}
-                                    {machine.category !== 'telehandler' && (
-                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                            <label className="text-[11px] font-black uppercase text-[#004e98] mb-2 flex items-center gap-2">
-                                                STABILISATEURS : DÉPLOIEMENT MAXIMAL REQUIS
-                                            </label>
-                                            <div className="flex justify-between items-baseline mb-1">
-                                                <span className="text-xs text-[#004e98] font-bold">Surface minimale :</span>
-                                                <span className="text-2xl font-black text-[#004e98]">
-                                                    {machine?.stabilizerSurface || "---"} <span className="text-sm font-bold">m²</span>
-                                                </span>
-                                            </div>
-                                            <p className="text-[10px] text-blue-600 italic leading-tight mt-2">
-                                                ⚠️ Si déploiement maximal impossible (calage intermédiaire), réaliser l’adéquation de levage à la main.
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* 1.5 BLOCS PORTANCE DU SOL */}
-                                    {machine.category !== 'telehandler' && groundPressureData && (
-                                        <>
-                                            {/* CHOIX DES PLAQUES DE RÉPARTITION */}
-                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">
-                                                    Plaques de répartition (m)
-                                                </label>
-                                                <div className="flex gap-2">
-                                                    {[1, 1.5, 2].map(size => (
-                                                        <button 
-                                                            key={size} 
-                                                            onClick={() => setSelectedPlate(size)}
-                                                            className={`flex-1 py-1 text-xs font-bold rounded border transition-all ${selectedPlate === size ? 'bg-[#004e98] text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-200'}`}
-                                                        >
-                                                            {size}x{size}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* AFFICHAGE DES DESCENTES DE CHARGE */}
-                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                <label className="text-[11px] font-black uppercase text-[#004e98] mb-2 flex items-center gap-2">
-                                                    PORTANCE DU SOL MINIMALE REQUISE
-                                                </label>
-                                                
-                                                <div className="space-y-2 mb-3 pb-3 border-b border-slate-200">
-                                                    <div className="flex justify-between items-end">
-                                                        <span className="text-[10px] text-slate-500 font-bold uppercase">Rmax (Charge centrée - Idéal) :</span>
-                                                        <span className="text-sm font-bold text-slate-700">{groundPressureData.rMaxCentered.toFixed(2)} t/patin</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-end">
-                                                        <span className="text-[10px] text-slate-500 font-bold uppercase">Rmax (Pire cas - 75% Mtotale) :</span>
-                                                        <span className="text-sm font-black text-slate-800">{groundPressureData.rMaxWorstCase.toFixed(2)} t/patin</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex justify-between items-baseline">
-                                                    <span className="text-xs text-[#004e98] font-bold">Pression sous patin :</span>
-                                                    <div className="text-right">
-                                                        <span className="text-2xl font-black text-red-600">
-                                                            {groundPressureData.pressureWorstCase.toFixed(2)} <span className="text-sm font-bold">t/m²</span>
-                                                        </span>
-                                                        <span className="text-sm font-bold text-red-500 ml-2">
-                                                            (soit {(groundPressureData.pressureWorstCase * 0.00981).toFixed(3)} MPa)
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                
-                                                <p className="text-[10px] text-red-600 font-bold italic leading-tight mt-2 flex items-start gap-1">
-                                                    <span>⚠️</span>
-                                                    <span>Vérifier impérativement que la résistance de votre sol est supérieure à {groundPressureData.pressureWorstCase.toFixed(2)} t/m² avant le levage.</span>
-                                                </p>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {/* 2. BLOC MASSE TOTALE */}
-                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                        <label className="text-xs font-bold uppercase text-slate-500 mb-2 flex items-center gap-2">
-                                            <Anchor size={14} className="text-[#004e98]"/> 
-                                            {machine?.category === 'telehandler' 
-                                                ? "Masse Totale (Charge + Accessoire)" 
-                                                : "Masse Totale (Charge + Moufle + Élingues)"}
-                                        </label>
-                                        <div className="text-2xl font-black text-[#004e98]">
-                                            {(totalMass / 1000).toFixed(2)} <span className="text-sm font-bold text-slate-500">t</span>
+                            {machine.mode === 'multi_chart' && (
+                                <>
+                                    <div className="mb-6">
+                                        <label className="text-xm font-bold text-slate-700 mb-2 block">Longueur Flèche (m)</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {machine.boomLengths.map(len => ( 
+                                                <button key={len} onClick={() => { setSelectedBoomLen(len); setIsAutoConfig(false); }} className={`px-3 py-1.5 text-sm font-bold rounded-lg border transition-all ${selectedBoomLen === len ? 'bg-[#004e98] text-white border-[#004e98]' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} ${isAutoConfig && selectedBoomLen === len ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {len} </button> 
+                                            ))}
                                         </div>
                                     </div>
-
-                                    {machine.mode === 'multi_chart' && (
-                                        <>
-                                            {/* 3. BLOC LONGUEUR FLÈCHE */}
-                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Longueur Flèche (m)</label>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {machine.boomLengths.map(len => ( 
-                                                        <button key={len} onClick={() => { setSelectedBoomLen(len); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedBoomLen === len ? 'bg-slate-800 text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedBoomLen === len ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {len} </button> 
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* 4. BLOC CONTREPOIDS */}
-                                            {machine.hasCounterweights && (
-                                                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Contrepoids (t)</label>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {machine.counterweights.map(cwt => ( 
-                                                            <button key={cwt} onClick={() => { setSelectedCwt(cwt); setIsAutoConfig(false); }} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedCwt === cwt ? 'bg-brand-red text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'} ${isAutoConfig && selectedCwt === cwt ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {cwt} </button> 
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-
-                                    {/* 5. BLOC ACCESSOIRE / OUTIL */}
-                                    {machine.hasTools && machine.tools && machine.tools.length > 0 && (
-                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                            <label className="text-xs font-bold uppercase text-slate-500 mb-2 block flex items-center gap-2"><Anchor size={12}/> Accessoire / Outil</label>
+                                    {machine.hasCounterweights && (
+                                        <div className="mb-6">
+                                            <label className="text-xm font-bold text-slate-700 mb-2 block">Contrepoids (t)</label>
                                             <div className="flex flex-wrap gap-2">
-                                                {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1 text-xs font-bold rounded shadow-sm transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white transform scale-105' : 'bg-white text-slate-600 hover:bg-slate-200'}`}> {tool} </button> ))}
+                                                {machine.counterweights.map(cwt => ( 
+                                                    <button key={cwt} onClick={() => { setSelectedCwt(cwt); setIsAutoConfig(false); }} className={`px-3 py-1.5 text-sm font-bold rounded-lg border transition-all ${selectedCwt === cwt ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} ${isAutoConfig && selectedCwt === cwt ? 'ring-2 ring-green-400 ring-offset-1' : ''}`}> {cwt} </button> 
+                                                ))}
                                             </div>
                                         </div>
                                     )}
+                                </>
+                            )}
+
+                            {machine.hasTools && machine.tools && machine.tools.length > 0 && (
+                                <div className="mb-6">
+                                    <label className="text-xm font-bold text-slate-700 mb-2 block">Accessoire / Outil</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1.5 text-sm font-bold rounded-lg border transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white border-[#004e98]' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}> {tool} </button> ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 4. PLAQUES DE RÉPARTITION AVEC LIGNE SÉPARATRICE */}
+                            {machine.category !== 'telehandler' && (
+                                <>
+                                    <div className="h-[2px] bg-slate-300 w-4/5 mx-auto my-5 opacity-70"></div>
+                                    <div className="mb-2">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <label className="text-xm font-bold text-slate-700 mb-2 block">Plaques de répartition (m)</label>
+                                            <span className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-500 border border-slate-200">MANUEL</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {[1, 1.5, 2].map(size => (
+                                                <button key={size} onClick={() => setSelectedPlate(size)} className={`flex-1 py-2 text-sm font-bold rounded-lg border transition-all ${selectedPlate === size ? 'bg-[#004e98] text-white border-[#004e98] shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
+                                                    {size}x{size}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+                
+                {/* ========================================== */}
+                {/* COLONNE DROITE : LES RÉSULTATS (OUTPUTS)   */}
+                {/* ========================================== */}
+                <div className="lg:col-span-8 space-y-6">
+                    
+                    {/* BANDEAU STATUT PRINCIPAL */}
+                    <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col p-6 pl-9 ${bannerBg}`}>
+                        <div className={`absolute left-0 top-0 bottom-0 w-3 ${bannerBorder}`}></div>
+                        <div id="tour-status-card" className="flex justify-between items-start">
+                            <div>
+                                <h2 className={`text-3xl font-black uppercase mb-2 flex items-center gap-2 ${titleColor}`}>
+                                    {mainTitle} {titleIcon}
+                                </h2>
+                                <p className={`font-bold text-xm ${mainTextColor}`}>{statusMessage}</p>
+                                <p className={`text-sm font-medium mt-1 pr-4 max-w-sm ${subTextColor}`}>{statusSubMessage}</p>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-4xl font-black text-slate-800">{safeLoad/1000} <span className="text-xl font-semibold">t</span></div>
+                                <div className="text-xm text-slate-500 mt-1">Capacité maximale à {inputDist}m</div>
+                            </div>
+                        </div>
+                        <div className="mt-6">
+                            <div className="flex gap-2 items-end mb-2"><span className="text-xm font-bold text-slate-700">Utilisation {Math.round(usagePercent)}%</span></div>
+                            <div className="w-full h-4 bg-white rounded-full overflow-hidden border border-slate-200/50">
+                                <div style={{width: `${Math.min(100, usagePercent)}%`}} className={`h-full rounded-full transition-all duration-500 ease-out ${progressColor}`}></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* TABLEAU DE BORD (3 CARTES AVEC COULEURS PASTEL) */}
+                    <div className={`grid grid-cols-1 gap-5 items-stretch ${machine?.category !== 'telehandler' && groundPressureData ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
+                        
+                        {/* CARTE 1 : CONFIGURATION (Bleu Pastel) */}
+                        <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-between">
+                            <h4 className="text-base font-bold uppercase text-slate-500 flex items-center gap-2 mb-4">⚙️ Config. {isAutoConfig ? 'Recommandée' : 'Manuelle'}</h4>
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="bg-white p-3 rounded-lg text-center border border-slate-100 shadow-sm">
+                                    <div className="text-sm uppercase font-bold text-slate-400 mb-1">{machine?.category === 'telehandler' ? 'Outil' : 'Flèche'}</div>
+                                    <div className="text-lg font-black text-[#004e98] truncate">{machine?.category === 'telehandler' ? selectedTool?.split(' ')[0] : `${selectedBoomLen}m`}</div>
+                                </div>
+                                <div className="bg-white p-3 rounded-lg text-center border border-slate-100 shadow-sm">
+                                    <div className="text-sm uppercase font-bold text-slate-400 mb-1">{machine?.category === 'telehandler' ? 'Appui' : 'Contrepoids'}</div>
+                                    <div className="text-lg font-black text-[#004e98]">{machine?.category === 'telehandler' ? 'Patins' : `${selectedCwt}t`}</div>
+                                </div>
+                            </div>
+                            {machine?.category !== 'telehandler' && (
+                                <div className="pt-3 border-t border-blue-200/50 text-base text-[#004e98] font-medium">
+                                    Surface minimale : <span className="font-bold">{Math.ceil(machine.totalFootprint) || "---"} m²</span>
                                 </div>
                             )}
                         </div>
-                    </div>
-                </div>
-                
-                {/* --- COLONNE DE DROITE (Graphique et Statut) --- */}
-                <div className="lg:col-span-8 space-y-6">
-                    <div className={`relative rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row ${bannerBg}`}>
-                        <div className={`absolute left-0 top-0 bottom-0 w-3 ${bannerBorder}`}></div>
-                        <div id="tour-status-card" className="p-6 pl-9 flex-1 flex flex-col">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h2 className={`text-2xl font-bold uppercase mb-1 flex items-center gap-2 ${titleColor}`}>
-                                        {mainTitle} {titleIcon}
-                                    </h2>
-                                    <p className={`font-bold text-sm ${mainTextColor}`}>{statusMessage}</p>
-                                    <p className={`text-xs font-medium mt-1 pr-4 max-w-sm ${subTextColor}`}>{statusSubMessage}</p>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-4xl font-bold text-slate-800">{safeLoad/1000} <span className="text-xl font-semibold">t</span></div>
-                                    <div className="text-xs text-slate-500 mt-1">Max de cette configuration à {inputDist}m</div>
-                                </div>
+
+                        {/* CARTE 2 : BILAN DES MASSES (Orange Pastel) */}
+                        <div className="bg-orange-50/50 p-5 rounded-xl border border-orange-100 shadow-sm flex flex-col justify-between">
+                            <h4 className="text-base font-bold uppercase text-slate-500 flex items-center gap-2 mb-4">⚖️ Bilan des Masses</h4>
+                            <div className="space-y-2 mb-4 flex-1">
+                                <div className="flex justify-between text-[15px] font-bold text-slate-700"><span>Charge brute :</span><span>{(inputLoad/1000).toFixed(2)} <span className="font-medium text-xm">t</span></span></div>
+                                <div className="flex justify-between text-[15px] font-bold text-slate-700"><span>{machine?.category === 'telehandler' ? 'Outil :' : 'Moufle :'}</span><span>{(machine?.category === 'telehandler' ? (telehandlerToolMassKg/1000) : currentMoufle).toFixed(2)} <span className="font-medium text-xm">t</span></span></div>
+                                {machine?.category !== 'telehandler' && <div className="flex justify-between text-[15px] font-bold text-slate-700"><span>Élingues :</span><span>{(slingsMassKg/1000).toFixed(2)} <span className="font-medium text-xm">t</span></span></div>}
                             </div>
-                            <div className="mt-8">
-                                <div className="flex gap-2 items-end mb-2"><span className="text-sm font-bold text-black">Utilisation {Math.round(usagePercent)}%</span></div>
-                                <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden"><div style={{width: `${Math.min(100, usagePercent)}%`}} className={`h-full rounded-full transition-all duration-500 ease-out ${progressColor}`}></div></div>
+                            <div className="pt-3 border-t border-orange-200/50 flex justify-between items-end">
+                                <span className="text-base font-bold text-slate-800">TOTAL :</span>
+                                <span className="text-2xl font-black text-[#004e98]">{(totalMass/1000).toFixed(2)}<span className="text-lg font-bold ml-1">t</span></span>
                             </div>
                         </div>
-                    </div>
 
-                    {machine && machine.mode === 'multi_chart' && (
-                        <div id="tour-Configuration" className={`flex flex-col lg:flex-row items-start lg:items-center gap-3 lg:gap-6 bg-slate-50 border-l-4 p-3 lg:p-4 rounded-r-xl shadow-sm mb-6 transition-colors ${isAutoConfig ? 'border-[#004e98]' : 'border-slate-400'}`}>
-                            
-                            <div className="flex items-center gap-3 w-full lg:w-auto">
-                                <div className={`bg-white p-2 rounded-full shadow-sm transition-colors ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-500'}`}>
-                                    <Layers size={20} />
+                        {/* CARTE 3 : PORTANCE AU SOL */}
+                        {machine?.category !== 'telehandler' && groundPressureData && (
+                            <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-between">
+                                <div className="flex justify-between items-start mb-4">
+                                    <h4 className="text-sm font-bold uppercase text-slate-500 flex items-center gap-2">🌍 Portance au Sol</h4>
+                                    <span className="text-[8px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">Valeurs par patin</span>
                                 </div>
-                                <div>
-                                    <h4 className="font-bold text-slate-800 text-sm lg:text-base">
-                                        {isAutoConfig ? "Configuration Recommandée" : "Configuration Manuelle"}
-                                    </h4>
-                                    <p className="text-xs text-slate-500">
-                                        {isAutoConfig 
-                                            ? "L'algorithme a ajusté la grue pour ce levage." 
-                                            : "Vous avez forcé les paramètres de la grue."}
-                                    </p>
-                                </div>
-                            </div>
-                    
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:flex gap-2 w-full lg:w-auto lg:ml-auto">
                                 
-                                {machine?.mode === 'multi_chart' && (
-                                    <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                                        <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Flèche</span>
-                                        <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
-                                            {selectedBoomLen || '0'} m
-                                        </span>
+                                <div className="space-y-4 mb-4 flex-1">
+                                    <div className="flex justify-between text-[15px] font-bold text-slate-700 group relative">
+                                        <span>Rmax (Charge centrée) :</span>
+                                        <span className="text-slate-800">{groundPressureData.rMaxCentered.toFixed(1)} t</span>
+                                        <span className="absolute -bottom-4 left-0 text-[10px] text-slate-400 font-normal">Théorique : 25% de la masse totale</span>
                                     </div>
-                                )}
-                    
-                                {machine?.hasCounterweights && (
-                                    <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                                        <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Contrepoids</span>
-                                        <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
-                                            {selectedCwt || '0'} t
-                                        </span>
+                                    <div className="flex justify-between text-[15px] font-bold text-slate-700 group relative pt-2">
+                                        <span>Rmax (Pire cas - 75%) :</span>
+                                        <span className="text-slate-800 font-black">{groundPressureData.rMaxWorstCase.toFixed(1)} t</span>
+                                        <span className="absolute -bottom-4 left-0 text-[10px] text-slate-400 font-normal">Sécurité : 75% de la masse totale sur 1 coin</span>
                                     </div>
-                                )}
-                    
-                                {machine?.category !== 'telehandler' && (
-                                    <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                                        <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">Moufle</span>
-                                        <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
-                                            {currentMoufle > 0 ? currentMoufle.toFixed(2) + ' t' : '---'}
-                                        </span>
-                                    </div>
-                                )}
-
-                                <div className="bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                                    <span className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-0.5 text-center">
-                                        {machine?.category === 'telehandler' ? 'Accessoire' : 'Élingues'}
-                                    </span>
-                                    <span className={`font-black text-sm md:text-base text-center whitespace-nowrap ${isAutoConfig ? 'text-[#004e98]' : 'text-slate-700'}`}>
-                                        {displayAccessoryMassT > 0 ? displayAccessoryMassT.toFixed(2) + ' t' : '---'}
-                                    </span>
                                 </div>
-                    
+                                
+                                <div className="pt-3 border-t border-emerald-200/50 flex flex-col mt-2">
+                                    <div className="flex justify-between text-[15px] font-bold text-slate-700 mb-1">Pression exercée :</div>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-2xl font-black text-[#004e98]">{(groundPressureData.pressureWorstCase * 0.00981).toFixed(2)}<span className="text-xl font-bold ml-1">MPa</span></span>
+                                    </div>
+                                    <div className="text-[12px] font-bold text-[#004e98] opacity-80 mt-0.5">
+                                        soit {groundPressureData.pressureWorstCase.toFixed(1)} t/m² par patin
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
+
+                    {/* GRAPHIQUE 2D */}
                     <GraphChart2D 
                         machine={machine}
                         inputDist={inputDist}
