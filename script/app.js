@@ -33,11 +33,11 @@ const HomePage = ({ navigate }) => (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10 max-w-4xl mx-auto">
                 <button id="tour-nav-determine" onClick={() => navigate('determine')} className="animate-slide-up group relative h-64 rounded-xl bg-[#004e98] text-white p-8 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center gap-6" style={{animationDelay: '0.2s'}}>
                     <div className="p-4 bg-white/20 rounded-full group-hover:scale-110 transition-transform duration-300 backdrop-blur-sm"><Calculator size={48} /></div>
-                    <div><span className="block text-2xl font-bold mb-2">Déterminer</span><span className="text-blue-100 text-lg font-light">le bon engin de levage</span></div>
+                    <div><span className="block text-3xl font-bold mb-2">Déterminer</span><span className="text-blue-100 text-lg font-light">le bon engin de levage</span></div>
                 </button>
                 <button id="tour-nav-verify" onClick={() => navigate('verify')} className="animate-slide-up group relative h-64 rounded-xl bg-[#004e98] text-white p-8 shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center gap-6" style={{animationDelay: '0.3s'}}>
                     <div className="p-4 bg-white/20 rounded-full group-hover:scale-110 transition-transform duration-300 backdrop-blur-sm"><CheckCircle size={48} /></div>
-                    <div><span className="block text-2xl font-bold mb-2">Vérifier</span><span className="text-blue-100 text-lg font-light">mon engin de levage</span></div>
+                    <div><span className="block text-3xl font-bold mb-2">Vérifier</span><span className="text-blue-100 text-lg font-light">mon engin de levage</span></div>
                 </button>
             </div>
         </div>
@@ -137,11 +137,11 @@ const App = () => {
     return (
         <div className="min-h-screen">
             <Header goHome={() => setPage('home')} />
-            <main className="p-4 md:p-8 max-w-[1600px] mx-auto">
+            <main className="p-4 md:p-3 max-w-[1600px] mx-auto">
                 {page === 'home' && <HomePage navigate={setPage} />}
                 {page !== 'home' && (
                     <div className="animate-fade-in">
-                        <button onClick={() => setPage('home')} className="mb-6 flex items-center text-slate-500 hover:text-brand-blue font-bold px-4 py-2 hover:bg-white rounded-lg transition-colors"><ArrowLeft size={20} className="mr-2"/> Retour Accueil</button>
+                        <button onClick={() => setPage('home')} className="flex items-center text-slate-500 text-lg hover:text-brand-blue font-bold px-5 py-1 hover:bg-white rounded-lg transition-colors"><ArrowLeft size={25} className="mr-2"/> Retour Accueil</button>
                         {page === 'determine' && <DeterminePage allMachines={allMachines} />}
                         {page === 'verify' && <VerifyPage allMachines={allMachines} onSaveLocal={saveLocal} onDeleteLocal={deleteLocal} onResetLocal={resetLocal} onImportLocal={importLocal}/>}
                     </div>
@@ -476,39 +476,26 @@ function renderHistoryTable(data) {
 //      ESPACE ADMINISTRATEUR (CODE PIN ET IMPORT EXCEL)
 // ============================================================
 
-window.checkAdminPin = () => {
-    const pin = document.getElementById('admin-pin').value;
+// --- ACCÈS ADMIN PAR PROMPT ---
+window.handleAdminAccess = () => {
+    const pin = prompt("Code PIN Administrateur requis :");
+
     if (pin === '1234') {
-        document.getElementById('admin-login').classList.add('hidden');
-        document.getElementById('admin-panel').classList.remove('hidden');
-        document.getElementById('admin-pin').value = ''; // On vide par sécurité
-    } else {
-        const err = document.getElementById('admin-error');
-        err.classList.remove('hidden');
-        setTimeout(() => err.classList.add('hidden'), 3000);
+        // On ouvre la modale directement sur le panneau
+        document.getElementById('data-modal-overlay').classList.remove('hidden');
+        if(window.refreshAdminPanel) window.refreshAdminPanel();
+    } 
+    else if (pin !== null) {
+        alert("❌ Accès refusé.");
     }
-    if(window.refreshAdminPanel) window.refreshAdminPanel();
 };
 
 // --- ACTUALISATION DU PANNEAU ADMIN ---
+// --- MISE À JOUR DU PANNEAU ADMIN (Tableau des machines locales) ---
 window.refreshAdminPanel = () => {
-    if (!window.getGlobalMachines) return; // Sécurité
+    if (!window.getGlobalMachines) return;
 
     const allMachines = window.getGlobalMachines();
-    
-    // 1. Mise à jour des compteurs (Statistiques)
-    let countGM = 0, countMT = 0, countGT = 0;
-    allMachines.forEach(m => {
-        if (m.category === 'mobile_crane') countGM++;
-        else if (m.category === 'telehandler') countMT++;
-        else if (m.category === 'crawler_crane') countGT++;
-    });
-
-    document.getElementById('stat-gm').innerText = countGM;
-    document.getElementById('stat-mt').innerText = countMT;
-    document.getElementById('stat-gt').innerText = countGT;
-
-    // 2. Mise à jour du tableau des machines locales (pour suppression)
     const localMachines = allMachines.filter(m => m.source === 'local');
     const tbody = document.getElementById('admin-local-machines');
     
@@ -516,19 +503,26 @@ window.refreshAdminPanel = () => {
         tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-slate-400 italic">Aucune machine locale importée.</td></tr>';
     } else {
         tbody.innerHTML = localMachines.map(m => `
-            <tr class="hover:bg-slate-50">
-                <td class="p-2 font-bold text-slate-700">
+            <tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="p-3 font-bold text-slate-700">
                     ${m.name} 
-                    <span class="text-[9px] font-normal text-slate-400 block">
-                        ${m.category === 'telehandler' ? 'Télescopique' : m.category === 'mobile_crane' ? 'Grue Mobile' : 'Treillis'}
+                    <span class="text-[10px] font-normal text-slate-400 block uppercase">
+                        ${m.category === 'telehandler' ? 'Télescopique' : 'Grue Mobile'}
                     </span>
                 </td>
-                <td class="p-2 text-right align-middle">
-                    <button onclick="deleteMachineFromAdmin('${m.id}')" class="text-red-500 hover:bg-red-50 px-2 py-1 rounded transition font-bold border border-red-100">Supprimer</button>
+                <td class="p-3 text-right">
+                    <button onclick="deleteMachineFromAdmin('${m.id}')" class="text-red-500 hover:bg-red-50 px-3 py-1 rounded-lg transition font-bold border border-red-200 text-xs">
+                        Supprimer
+                    </button>
                 </td>
             </tr>
         `).join('');
     }
+    
+    // Mise à jour des compteurs statistiques
+    document.getElementById('stat-gm').innerText = allMachines.filter(m => m.category === 'mobile_crane').length;
+    document.getElementById('stat-mt').innerText = allMachines.filter(m => m.category === 'telehandler').length;
+    document.getElementById('stat-gt').innerText = allMachines.filter(m => m.category === 'crawler_crane').length;
 };
 
 // --- FONCTION DE SUPPRESSION ---
@@ -570,9 +564,12 @@ window.downloadAdminTemplate = () => {
 
     // --- 3. ONGLET CONFIGURATION DE L'ENGIN ---
     const wsConfigData = [
-        ["Surface de calage (m²)", 36],
-        ["Masse de l'engin à vide (t)", 60]
-        ["URL Fiche Technique (Lien Web)", "https://assets-cdn.liebherr.com/versions/75f1af54-977e-4d86-beb8-81556f2d589e/original/"] 
+        ["Surface de calage (m²)", 55.7],
+        ["Masse de l'engin à vide (t)", 24],
+        ["URL Fiche Technique (Lien Web)", "https://assets-cdn.liebherr.com/versions/e9..."],
+        ["Longueur (m)", 8.534],
+        ["Largeur (m)", 6.528],
+        ["Rayon de giration (m)", 4.07] 
     ];
     const wsConfig = XLSX.utils.aoa_to_sheet(wsConfigData);
     XLSX.utils.book_append_sheet(wb, wsConfig, "Configuration de l'engin");
@@ -589,6 +586,51 @@ window.downloadAdminTemplate = () => {
 
     // Génération et téléchargement final
     XLSX.writeFile(wb, "Modele_Import_Grue.xlsx");
+};
+
+// --- FONCTION D'EXPORTATION JSON ---
+window.exportLocalDatabaseJSON = () => {
+    if (!window.getGlobalMachines) return;
+    const localMachines = window.getGlobalMachines().filter(m => m.source === 'local');
+
+    if (localMachines.length === 0) {
+        alert("Aucun engin local à exporter.");
+        return;
+    }
+
+    // 1. Création du JSON de base avec indentation
+    let jsonStr = JSON.stringify(localMachines, null, 2);
+
+    // 2. Compresser les paires de coordonnées { "d": X, "l": Y } sur une ligne
+    jsonStr = jsonStr.replace(/\{\s*"d":\s*([-\d.]+),\s*"l":\s*([-\d.]+)\s*\}/g, '{ "d": $1, "l": $2 }');
+    
+    // 3. Compresser les objets moufles { "maxLoad": X, "mass": Y }
+    jsonStr = jsonStr.replace(/\{\s*"maxLoad":\s*([-\d.]+),\s*"mass":\s*([-\d.]+)\s*\}/g, '{ "maxLoad": $1, "mass": $2 }');
+
+    // 4. Compresser les zones [X, Y]
+    jsonStr = jsonStr.replace(/\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]/g, '[$1, $2]');
+
+    // 5. Compresser TOUS les contenus de ces tableaux sur une seule ligne
+    const arraysToCompress = ["boomLengths", "counterweights", "tools", "points", "std", "moufles"];
+    arraysToCompress.forEach(key => {
+        const regex = new RegExp(`"${key}":\\s*\\[([\\s\\S]*?)\\]`, 'g');
+        jsonStr = jsonStr.replace(regex, (match, content) => {
+            // Supprime les sauts de ligne à l'intérieur du tableau
+            return `"${key}": [` + content.replace(/\s*\n\s*/g, ' ').trim() + `]`;
+        });
+    });
+
+    // 6. Compresser les blocs d'abaques (ex: { "std": [...] }) pour retirer leurs sauts de ligne
+    jsonStr = jsonStr.replace(/\{\s*"std":\s*(\[[^\]]*\])\s*\}/g, '{ "std": $1 }');
+
+    // Génération et téléchargement
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `export_bdd_cmc_${new Date().toISOString().slice(0,10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
 };
 
 window.handleAdminExcelUpload = (e) => {
@@ -699,35 +741,92 @@ window.handleAdminExcelUpload = (e) => {
             let stabilizerSurface = 0;
             let machineMass = 0;
             let techSheetUrl = "";
+            let calageLength = 0;
+            let calageWidth = 0;
+            let gyrationRadius = 0;
+            let totalFootprint = 0;
+
             const configSheetName = wb.SheetNames.find(n => n.toLowerCase().includes('configuration'));
             
             if (configSheetName) {
                 const wsConfig = wb.Sheets[configSheetName];
                 
-                // Surface de calage en B1 (Avec arrondi à 1 chiffre après la virgule)
+                // B1: Surface de calage (Optionnel si on a L et l)
                 const surfaceVal = parseFloat(wsConfig['B1']?.v);
                 if (!isNaN(surfaceVal)) stabilizerSurface = parseFloat(surfaceVal.toFixed(1));
             
-                // Masse de l'engin à vide en B2
+                // B2: Masse de l'engin à vide
                 const massVal = parseFloat(wsConfig['B2']?.v);
                 if (!isNaN(massVal)) machineMass = massVal;
 
-                // URL Fiche Technique en B3
+                // B3: URL Fiche Technique
                 const urlVal = wsConfig['B3']?.v;
                 if (urlVal) techSheetUrl = urlVal;
+
+                // B4: Longueur (m)
+                const lenVal = parseFloat(wsConfig['B4']?.v);
+                if (!isNaN(lenVal)) calageLength = lenVal;
+
+                // B5: Largeur (m)
+                const widVal = parseFloat(wsConfig['B5']?.v);
+                if (!isNaN(widVal)) calageWidth = widVal;
+
+                // B6: Rayon de giration (m)
+                const radVal = parseFloat(wsConfig['B6']?.v);
+                if (!isNaN(radVal)) gyrationRadius = radVal;
+
+                // --- CALCUL AUTOMATIQUE DE L'EMPRISE AU SOL ---
+                if (calageLength > 0 && calageWidth > 0 && gyrationRadius > 0) {
+                    // Si B1 était vide, on calcule la surface de calage
+                    if (stabilizerSurface === 0) stabilizerSurface = calageLength * calageWidth;
+
+                    // Fonction interne pour le débordement
+                    const calculerDebordement = (distAuBord, rayon) => {
+                        if (rayon <= distAuBord) return 0;
+                        return (Math.pow(rayon, 2) * Math.acos(distAuBord / rayon)) - (distAuBord * Math.sqrt(Math.pow(rayon, 2) - Math.pow(distAuBord, 2)));
+                    };
+
+                    // On vérifie si la tourelle déborde sur les côtés ou l'avant/arrière
+                    const debordementLateral = 2 * calculerDebordement(calageWidth / 2, gyrationRadius);
+                    const debordementLongitudinal = 2 * calculerDebordement(calageLength / 2, gyrationRadius);
+
+                    totalFootprint = stabilizerSurface + debordementLateral + debordementLongitudinal;
+                } else {
+                    totalFootprint = stabilizerSurface;
+                }
             }
 
             // --- CRÉATION DE LA MACHINE ---
             const newMachine = { 
-                id: "custom_" + Date.now(), source: "local", category: category, name: `${file.name.replace(/\.[^/.]+$/, "")}`, 
-                type: "crane", mode: "multi_chart", maxLoad: maxLoadFound * 1000, maxReach: maxReachFound, maxHeight: Math.max(...boomLengths) + 2, 
-                hasTelescoping: false, hasCounterweights: useCwtMode, counterweights: useCwtMode ? counterweights : null, 
-                boomLengths: boomLengths, charts: charts, moufles: moufles, 
-                hasTools: tools.length > 0, tools: tools.length > 0 ? tools : null, toolsMass: toolsMass, 
-                createdAt: new Date().toISOString(), isCustom: true,
+                id: "custom_" + Date.now(), 
+                source: "local", 
+                category: category, 
+                name: `${file.name.replace(/\.[^/.]+$/, "")}`, 
+                type: "crane", 
+                mode: "multi_chart", 
+                maxLoad: maxLoadFound * 1000, 
+                maxReach: maxReachFound, 
+                maxHeight: Math.max(...boomLengths) + 2, 
+                hasTelescoping: false, 
+                hasCounterweights: useCwtMode, 
+                counterweights: useCwtMode ? counterweights : null, 
+                boomLengths: boomLengths, 
+                charts: charts, 
+                moufles: moufles, 
+                hasTools: tools.length > 0, 
+                tools: tools.length > 0 ? tools : null, 
+                toolsMass: toolsMass, 
+                createdAt: new Date().toISOString(), 
+                isCustom: true,
+                
+                // Nouvelles variables enregistrées en base :
                 stabilizerSurface: stabilizerSurface,
                 machineMass: machineMass,
                 techSheetUrl: techSheetUrl,
+                calageLength: calageLength,
+                calageWidth: calageWidth,
+                gyrationRadius: gyrationRadius,
+                totalFootprint: parseFloat(totalFootprint.toFixed(2))
             };
             
             // Appel de la fonction React via le pont créé
