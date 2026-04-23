@@ -957,7 +957,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         {machine?.category !== 'telehandler' && groundPressureData && (
                             <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-between">
                                 <div className="flex justify-between items-start mb-4">
-                                    <h4 className="text-sm font-bold uppercase text-slate-500 flex items-center gap-2">🌍 Portance au Sol</h4>
+                                    <h4 className="text-base font-bold uppercase text-slate-500 flex items-center gap-2">🌍 Portance au Sol</h4>
                                     <span className="text-[8px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">Valeurs par patin</span>
                                 </div>
                                 
