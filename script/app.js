@@ -412,62 +412,95 @@ async function loadGitHubHistory() {
     ];
 
     let historyResults = [];
+    let errorMessage = null; // Stockera le message d'erreur pour le bloc finally
+
+    // Réinitialisation de l'affichage
+    loading.innerText = "⏳ Synchronisation globale...";
+    loading.className = "text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded animate-pulse";
     tbody.innerHTML = '';
 
     try {
         for (const file of FILES_TO_TRACK) {
-            const baseUrl = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/commits?path=${file.path}&per_page=1`;
-            const lastRes = await fetch(baseUrl);
+            try {
+                // On ajoute _=${Date.now()} pour esquiver le cache forcé du navigateur
+                const baseUrl = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/commits?path=${file.path}&per_page=1&_=${Date.now()}`;
+                const lastRes = await fetch(baseUrl);
 
-            // GESTION DU QUOTA (RATE LIMIT)
-            if (lastRes.status === 403 || lastRes.status === 429) {
-                loading.innerText = "⚠️ Limite API GitHub atteinte (réessayez dans 1h)";
-                loading.classList.remove('animate-pulse');
-                loading.classList.add('bg-amber-100', 'text-amber-700');
-                return; // On arrête le chargement
+                // --- GESTION DES DIFFÉRENTES ERREURS POSSIBLES ---
+                if (lastRes.status === 403 || lastRes.status === 429) {
+                    errorMessage = "⚠️ Limite API GitHub atteinte (Quota).";
+                    break; // On STOPPE la boucle, inutile de griller plus de requêtes
+                }
+                if (lastRes.status === 404) {
+                    console.warn(`Fichier introuvable sur GitHub : ${file.path}`);
+                    continue; // On IGNORE ce fichier et on passe au suivant
+                }
+                if (!lastRes.ok) throw new Error(`Erreur Serveur HTTP ${lastRes.status}`);
+
+                const lastData = await lastRes.json();
+                if (!lastData || lastData.length === 0) continue; 
+
+                const lastDate = lastData[0]?.commit?.author?.date;
+                const linkHeader = lastRes.headers.get('Link');
+                let firstDate = lastDate;
+
+                // --- RECHERCHE DU PREMIER COMMIT (S'il y a plusieurs pages) ---
+                if (linkHeader && linkHeader.includes('rel="last"')) {
+                    const lastPageUrl = linkHeader.split(',').find(s => s.includes('rel="last"')).match(/<(.*)>/)[1];
+                    const firstCommitRes = await fetch(lastPageUrl);
+                    
+                    // Si on se prend un blocage de quota pile sur cette deuxième requête
+                    if (firstCommitRes.status === 403 || firstCommitRes.status === 429) {
+                        errorMessage = "⚠️ Limite API GitHub atteinte en cours de route.";
+                        break; 
+                    }
+                    
+                    const firstCommitData = await firstCommitRes.json();
+                    firstDate = firstCommitData[0]?.commit?.author?.date;
+                }
+
+                historyResults.push({
+                    name: file.name,
+                    first: firstDate,
+                    last: lastDate
+                });
+
+            } catch (err) {
+                // Erreur de type "TypeError: Failed to fetch" = Coupure internet ou Pare-feu Vinci
+                if (err.name === 'TypeError') {
+                    errorMessage = "❌ Connexion bloquée (Pare-feu entreprise ou Hors ligne).";
+                    break; // On stoppe la boucle globale
+                } else {
+                    console.warn(`Erreur inattendue pour ${file.path}:`, err);
+                    continue; // Petite erreur imprévue : on passe au fichier suivant
+                }
             }
-
-            if (!lastRes.ok) throw new Error(`Erreur HTTP: ${lastRes.status}`);
-
-            const lastData = await lastRes.json();
-            if (lastData.length === 0) continue; // Fichier sans historique
-
-            const lastDate = lastData[0]?.commit?.author?.date;
-            const linkHeader = lastRes.headers.get('Link');
-            let firstDate = lastDate;
-
-            if (linkHeader && linkHeader.includes('rel="last"')) {
-                const lastPageUrl = linkHeader.split(',').find(s => s.includes('rel="last"')).match(/<(.*)>/)[1];
-                const firstCommitRes = await fetch(lastPageUrl);
-                const firstCommitData = await firstCommitRes.json();
-                firstDate = firstCommitData[0]?.commit?.author?.date;
-            }
-
-            historyResults.push({
-                name: file.name,
-                first: firstDate,
-                last: lastDate
-            });
         }
-
-        // 2. Sauvegarder les résultats pour la prochaine fois
+    } finally {
+        // ==============================================================
+        // LE BLOC FINALLY S'EXÉCUTE TOUJOURS (Succès, Erreur ou Break)
+        // ==============================================================
+        
+        // 1. Sauvegarde et affichage des données récupérées (même partielles)
         if (historyResults.length > 0) {
             localStorage.setItem(CACHE_KEY, JSON.stringify(historyResults));
             renderHistoryTable(historyResults);
-        } else {
-            tbody.innerHTML = '<tr><td colspan="3" class="p-3 text-center text-slate-400">Aucun historique trouvé.</td></tr>';
+        } else if (!errorMessage) {
+            tbody.innerHTML = '<tr><td colspan="3" class="p-3 text-center text-slate-400">Aucun historique disponible.</td></tr>';
         }
 
-    } catch (e) {
-        console.error("Erreur de synchronisation GitHub :", e);
-        loading.innerText = "❌ Échec de la connexion (Pare-feu ou Réseau)";
-        loading.classList.remove('animate-pulse');
-        loading.classList.add('bg-red-100', 'text-red-700');
-        return; // Évite de cacher le message d'erreur
+        // 2. Gestion propre de l'étiquette (Badge Bleu/Rouge/Ambre)
+        if (errorMessage) {
+            loading.innerText = errorMessage;
+            // On le met en rouge (ou orange) bien visible
+            loading.className = "text-[10px] font-bold px-2 py-1 rounded bg-red-100 text-red-700 shadow-sm";
+            // On laisse le message visible 5 secondes pour que l'utilisateur le lise, puis on le cache
+            setTimeout(() => loading.classList.add('hidden'), 5000);
+        } else {
+            // Tout s'est parfaitement déroulé, on cache le badge immédiatement
+            loading.classList.add('hidden');
+        }
     }
-
-    // 3. Cacher le badge si tout s'est bien passé
-    loading.classList.add('hidden');
 }
 
 // Fonction utilitaire pour dessiner le tableau
