@@ -361,6 +361,8 @@ document.getElementById('wn-overlay').addEventListener('click', function(e) {
 // --- GESTION DU TABLEAU DE BORD (ANALYTICS & HISTORIQUE) ---
 
 function openDataModal() {
+    console.log("🚪 [DEBUG] Clic sur l'ouverture du Tableau de bord !");
+    
     // Ferme la modale "Infos Application" si elle est ouverte
     if (typeof window.closeInfoModal === 'function') {
         window.closeInfoModal();
@@ -369,13 +371,9 @@ function openDataModal() {
     // Affiche la modale des données
     document.getElementById('data-modal-overlay').classList.remove('hidden');
     
-    // On ne recharge l'historique que s'il est vide ET que nous ne sommes pas en erreur
-    const tbody = document.getElementById('history-tbody');
-    const isOffline = document.getElementById('info-remote-version').innerText === "Hors ligne";
-
-    if (tbody.innerHTML.trim() === '' && !isOffline) {
-        loadGitHubHistory();
-    }
+    // On force l'appel à la fonction sans condition bloquante !
+    console.log("🚀 [DEBUG] Appel de loadGitHubHistory()...");
+    loadGitHubHistory();
 }
 
 function closeDataModal() {
@@ -526,8 +524,14 @@ window.handleAdminAccess = () => {
     const pin = prompt("Code PIN Administrateur requis :");
 
     if (pin === '1234') {
-        // On ouvre la modale directement sur le panneau
-        document.getElementById('data-modal-overlay').classList.remove('hidden');
+        // ✅ CORRECTION : On appelle notre super fonction d'ouverture qui gère GitHub
+        if (window.openDataModal) {
+            window.openDataModal();
+        } else {
+            document.getElementById('data-modal-overlay').classList.remove('hidden');
+        }
+        
+        // On rafraîchit le tableau des machines locales
         if(window.refreshAdminPanel) window.refreshAdminPanel();
     } 
     else if (pin !== null) {
