@@ -392,7 +392,7 @@ async function loadGitHubHistory() {
     if (cachedData) {
         renderHistoryTable(JSON.parse(cachedData));
         loading.classList.add('hidden');
-        return; // On s'arrête là, pas besoin d'appeler l'API
+        return; 
     }
 
     const FILES_TO_TRACK = [
@@ -414,21 +414,25 @@ async function loadGitHubHistory() {
     let historyResults = [];
     tbody.innerHTML = '';
 
-    for (const file of FILES_TO_TRACK) {
-        try {
+    try {
+        for (const file of FILES_TO_TRACK) {
             const baseUrl = `https://api.github.com/repos/${GITHUB_CONFIG.username}/${GITHUB_CONFIG.repo}/commits?path=${file.path}&per_page=1`;
             const lastRes = await fetch(baseUrl);
 
-            // GESTION DE L'ERREUR 403 (RATE LIMIT)
-            if (lastRes.status === 403) {
+            // GESTION DU QUOTA (RATE LIMIT)
+            if (lastRes.status === 403 || lastRes.status === 429) {
                 loading.innerText = "⚠️ Limite API GitHub atteinte (réessayez dans 1h)";
                 loading.classList.remove('animate-pulse');
-                return;
+                loading.classList.add('bg-amber-100', 'text-amber-700');
+                return; // On arrête le chargement
             }
 
-            const lastData = await lastRes.json();
-            const lastDate = lastData[0]?.commit.author.date;
+            if (!lastRes.ok) throw new Error(`Erreur HTTP: ${lastRes.status}`);
 
+            const lastData = await lastRes.json();
+            if (lastData.length === 0) continue; // Fichier sans historique
+
+            const lastDate = lastData[0]?.commit?.author?.date;
             const linkHeader = lastRes.headers.get('Link');
             let firstDate = lastDate;
 
@@ -436,7 +440,7 @@ async function loadGitHubHistory() {
                 const lastPageUrl = linkHeader.split(',').find(s => s.includes('rel="last"')).match(/<(.*)>/)[1];
                 const firstCommitRes = await fetch(lastPageUrl);
                 const firstCommitData = await firstCommitRes.json();
-                firstDate = firstCommitData[0]?.commit.author.date;
+                firstDate = firstCommitData[0]?.commit?.author?.date;
             }
 
             historyResults.push({
@@ -444,17 +448,25 @@ async function loadGitHubHistory() {
                 first: firstDate,
                 last: lastDate
             });
-
-        } catch (e) {
-            console.error(`Erreur pour ${file.path}`, e);
         }
+
+        // 2. Sauvegarder les résultats pour la prochaine fois
+        if (historyResults.length > 0) {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(historyResults));
+            renderHistoryTable(historyResults);
+        } else {
+            tbody.innerHTML = '<tr><td colspan="3" class="p-3 text-center text-slate-400">Aucun historique trouvé.</td></tr>';
+        }
+
+    } catch (e) {
+        console.error("Erreur de synchronisation GitHub :", e);
+        loading.innerText = "❌ Échec de la connexion (Pare-feu ou Réseau)";
+        loading.classList.remove('animate-pulse');
+        loading.classList.add('bg-red-100', 'text-red-700');
+        return; // Évite de cacher le message d'erreur
     }
 
-    // 2. Sauvegarder les résultats pour la prochaine fois
-    localStorage.setItem(CACHE_KEY, JSON.stringify(historyResults));
-    
-    // 3. Afficher le tableau
-    renderHistoryTable(historyResults);
+    // 3. Cacher le badge si tout s'est bien passé
     loading.classList.add('hidden');
 }
 
