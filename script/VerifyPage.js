@@ -185,6 +185,7 @@ const PredimModal = ({ machine, inputLoad, inputDist, inputHeight, isSafe, safeL
                 <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
                 
                 <h2 className="text-2xl font-black text-slate-800 mb-2">Prédimensionnement</h2>
+                <span className="text-base font-bold text-red-800">⚠️ Le document d'adéquation officiel de l'entreprise sera intégré ultérieurement</span>
                 <p className="text-slate-500 text-sm mb-6">Préparez le document officiel pour validation par les équipes Méthodes et QPE.</p>
 
                 <div className="mb-6">
@@ -948,7 +949,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 {machine?.category !== 'telehandler' && <div className="flex justify-between text-[15px] font-bold text-slate-700"><span>Élingues :</span><span>{(slingsMassKg/1000).toFixed(2)} <span className="font-medium text-xm">t</span></span></div>}
                             </div>
                             <div className="pt-3 border-t border-orange-200/50 flex justify-between items-end">
-                                <span className="text-base font-bold text-slate-800">TOTAL :</span>
+                                <span className="text-base font-bold text-slate-800">Total :</span>
                                 <span className="text-2xl font-black text-[#004e98]">{(totalMass/1000).toFixed(2)}<span className="text-lg font-bold ml-1">t</span></span>
                             </div>
                         </div>
@@ -958,10 +959,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 shadow-sm flex flex-col justify-between">
                                 <div className="flex justify-between items-start mb-4">
                                     <h4 className="text-base font-bold uppercase text-slate-500 flex items-center gap-2">🌍 Portance au Sol</h4>
-                                    <span className="text-[8px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">Valeurs par patin</span>
+                                    {/* <span className="text-[8px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase">Valeurs par patin</span>*/}
                                 </div>
                                 
-                                <div className="space-y-4 mb-4 flex-1">
+                                <div className="space-y-4 mb-10 flex-1">
                                     <div className="flex justify-between text-[15px] font-bold text-slate-700 group relative">
                                         <span>Rmax (Charge centrée) :</span>
                                         <span className="text-slate-800">{groundPressureData.rMaxCentered.toFixed(1)} t</span>
@@ -969,17 +970,20 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     </div>
                                     <div className="flex justify-between text-[15px] font-bold text-slate-700 group relative pt-2">
                                         <span>Rmax (Pire cas - 75%) :</span>
-                                        <span className="text-slate-800 font-black">{groundPressureData.rMaxWorstCase.toFixed(1)} t</span>
+                                        <span className="text-slate-800">{groundPressureData.rMaxWorstCase.toFixed(1)} t</span>
                                         <span className="absolute -bottom-4 left-0 text-[10px] text-slate-400 font-normal">Sécurité : 75% de la masse totale sur 1 coin</span>
                                     </div>
                                 </div>
                                 
-                                <div className="pt-3 border-t border-emerald-200/50 flex flex-col mt-2">
-                                    <div className="flex justify-between text-[15px] font-bold text-slate-700 mb-1">Pression exercée :</div>
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="text-2xl font-black text-[#004e98]">{(groundPressureData.pressureWorstCase * 0.00981).toFixed(2)}<span className="text-xl font-bold ml-1">MPa</span></span>
+                                <div className="pt-3 border-t border-emerald-200/50 mt-auto">
+                                    <div className="flex justify-between items-end">
+                                        <span className="text-base font-bold text-slate-800">Pression exercée :</span>
+                                        <span className="text-2xl font-black text-[#004e98]">
+                                            {(groundPressureData.pressureWorstCase * 0.00981).toFixed(2)}
+                                            <span className="text-lg font-bold ml-1">MPa</span>
+                                        </span>
                                     </div>
-                                    <div className="text-[12px] font-bold text-[#004e98] opacity-80 mt-0.5">
+                                    <div className="text-[12px] font-bold text-[#004e98] opacity-80 mt-0.5 text-right">
                                         soit {groundPressureData.pressureWorstCase.toFixed(1)} t/m² par patin
                                     </div>
                                 </div>
