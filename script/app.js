@@ -626,9 +626,15 @@ window.downloadAdminTemplate = () => {
     // --- 4. ONGLET ACCESSOIRES (Pour les télescopiques) ---
     const wsAccessoiresData = [
         ["Nom de l'accessoire", "Masse (t)"],
-        ["Fourches standard", 0.15],
-        ["Potence 2t", 0.25],
-        ["Godet 1000L", 0.40]
+        ["Potence-crochet (JH 2500 - Compact)", 0.09],
+        ["Potence-crochet (PC 50 - Standard)", 0.12],
+        ["Tablier + Fourches (PFB 25N/35N)", 0.18],
+        ["Manipulateur Big-Bags (HBB 1500)", 0.19],
+        ["Potence simple (P 4000)", 0.21],
+        ["Treuil Hydraulique (Treuil 3T)", 0.31],
+        ["Nacelle (PF 2000 3P)", 0.39],
+        ["Potence LOURDE (P 13 T - MHT)", 0.56],
+        ["Treuil LOURD (Treuil 13 T - MHT)", 1.19]
     ];
     const wsAccessoires = XLSX.utils.aoa_to_sheet(wsAccessoiresData);
     XLSX.utils.book_append_sheet(wb, wsAccessoires, "Accessoires");
