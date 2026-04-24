@@ -936,6 +936,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                             {machine?.category !== 'telehandler' && (
                                 <div className="pt-3 border-t border-blue-200/50 text-base text-[#004e98] font-medium">
                                     Surface minimale : <span className="font-bold">{Math.ceil(machine.totalFootprint) || "---"} m²</span>
+                                    <span className="absolute -bottom-4 left-0 text-[10px] text-slate-400 font-normal">⚠️ Cas de charges définit avec déploiement maximal des patins</span>
                                 </div>
                             )}
                         </div>
