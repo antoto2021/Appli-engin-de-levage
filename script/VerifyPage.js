@@ -940,7 +940,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                             {machine?.totalFootprint ? Math.ceil(machine.totalFootprint) : "---"} m²
                                         </span>
                                     </div>
-                                    <span className="text-[10px] text-slate-400 font-normal leading-tight">⚠️ Cas de charges défini avec déploiement maximal des patins</span>
+                                    <span className="text-[12px] text-slate-600 font-normal leading-tight">⚠️ Cas de charges défini avec déploiement maximal des patins</span>
                                 </div>
                             )}
                         </div>
