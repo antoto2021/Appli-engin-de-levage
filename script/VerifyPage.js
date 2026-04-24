@@ -7,6 +7,52 @@ const CRANE_SLINGS_TABLE = [
     { upTo: Infinity, mass: 460 } // Au delà -> 460kg d'élingues
 ];
 
+const MANITOU_ACCESSORIES = {
+    "Potence-crochet (JH 2500 - Compact)": 0.09,
+    "Potence-crochet (PC 50 - Standard)": 0.12,
+    "Tablier + Fourches (PFB 25N/35N)": 0.18,
+    "Manipulateur Big-Bags (HBB 1500)": 0.19,
+    "Potence simple (P 4000)": 0.21,
+    "Treuil Hydraulique (Treuil 3T)": 0.31,
+    "Nacelle (PF 2000 3P)": 0.39,
+    "Potence LOURDE (P 13 T - MHT)": 0.56,
+    "Treuil LOURD (Treuil 13 T - MHT)": 1.19
+};
+
+const getCompatibleTools = (machine) => {
+    if (!machine) return [];
+
+    // CAS 1 : Vrais outils importés via Excel (différents de "Accessoire Standard")
+    if (machine.tools && machine.tools.length > 0 && !machine.tools.includes("Accessoire Standard")) {
+        return machine.tools.map(t => ({ name: t, mass: machine.toolsMass ? machine.toolsMass[t] : 0 }));
+    }
+
+    // CAS 2 : Machine avec "Accessoire Standard", on injecte la logique Manitou
+    if (machine.category === 'telehandler') {
+        const machineName = machine.name.toUpperCase();
+        const isMHT = machineName.includes('MHT');
+        const isCompact = machineName.includes('ULM') || machineName.includes('420') || machineName.includes('625');
+
+        const allTools = Object.keys(MANITOU_ACCESSORIES);
+        
+        const filteredTools = allTools.filter(tool => {
+            const t = tool.toLowerCase();
+            // Règle MHT : Outils lourds uniquement pour les gammes MHT
+            if (t.includes('lourd') || t.includes('mht')) return isMHT;
+            // Règle Compact : Outils compacts pour les petits et moyens, pas pour les géants
+            if (t.includes('compact') || t.includes('jh 2500') || t.includes('hbb 1500')) return !isMHT;
+            // Règle Standard : Pas d'outils standards/gros sur les ultra-compacts
+            if (t.includes('standard') || t.includes('pc 50') || t.includes('treuil 3t') || t.includes('p 4000') || t.includes('nacelle')) return !isCompact;
+            
+            return true; // Le "Tablier + Fourches" passe partout
+        });
+
+        return filteredTools.map(t => ({ name: t, mass: MANITOU_ACCESSORIES[t] }));
+    }
+
+    return [];
+};
+
 const CustomRange = ({ label, value, min, max, step, onChange, unit = "", maxLabel = "" }) => {
     const range = max - min;
     const percentage = range > 0 ? Math.min(100, Math.max(0, ((value - min) / range) * 100)) : 0;
@@ -376,6 +422,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
     const [selectedBoomLen, setSelectedBoomLen] = useState(0); 
     const [selectedCwt, setSelectedCwt] = useState(null);
     const [selectedTool, setSelectedTool] = useState(null);
+    const chartTool = useMemo(() => {
+        if (!machine) return null;
+        if (machine.charts && machine.charts[selectedTool]) return selectedTool;
+        if (machine.tools && machine.tools.length > 0) return machine.tools[0];
+        return null;
+    }, [machine, selectedTool]);
     const [selectedPlate, setSelectedPlate] = useState(1);
     
     const [isAutoConfig, setIsAutoConfig] = useState(true); 
@@ -443,7 +495,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             // Si on clique sur "Engin Télescopique"
             if (newCat === 'telehandler') {
                 setInputLoad(1000);  // Masse par défaut : 1 tonnes (1000 kg)
-                setInputDist(2);     // Portée par défaut : 3 m
+                setInputDist(2);     // Portée par défaut : 2 m
                 setInputHeight(2);   // Hauteur par défaut : 2 m
             } 
             // Si on clique sur "Grue Mobile" ou "Grue Treillis"
@@ -465,10 +517,22 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                 setSelectedCwt(sorted[sorted.length - 1]); 
             }
         } else { setSelectedCwt(null); } 
-        if (machine?.hasTools && machine?.tools) { setSelectedTool(machine.tools[0]); } else { setSelectedTool(null); }
+        if (machine?.category === 'telehandler') {
+            const compTools = getCompatibleTools(machine);
+            if (compTools.length > 0) {
+                if (!selectedTool || !compTools.find(t => t.name === selectedTool)) {
+                    setSelectedTool(compTools[0].name);
+                }
+            } else {
+                setSelectedTool(null);
+            }
+        } else if (machine?.hasTools && machine?.tools) {
+            setSelectedTool(machine.tools[0]);
+        } else {
+            setSelectedTool(null);
+        }
         
         if (machine) {
-            // NOUVEAU : On repousse le curseur si la nouvelle portée min est plus grande que la valeur actuelle
             if (inputDist > machine.maxReach) {
                 setInputDist(machine.maxReach > 0 ? machine.maxReach : 5);
             } else if (inputDist < absoluteMinReach) {
@@ -478,6 +542,8 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
             if (inputHeight > machine.maxHeight + 5) setInputHeight(machine.maxHeight > 0 ? machine.maxHeight : 2);
         }
     }, [machine, absoluteMinReach, isAutoConfig]);
+
+    
 
     // --- LOGIQUE AUTO CONFIG TOTALE INTÉGRANT LA SÉCURITÉ < 80% ---
     useEffect(() => {
@@ -497,7 +563,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
                     if (tipH < inputHeight) continue; 
 
-                    const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
+                    const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, chartTool);
                     if (cap > 0 && (totalMass / cap) <= 0.80) { 
                         bestCwt = cwt; bestBoom = boom; found = true; break; 
                     }
@@ -516,7 +582,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
                         if (tipH < inputHeight) continue; 
 
-                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
+                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, chartTool);
                         if (cap >= totalMass - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
                     }
                     if (found) break; 
@@ -531,7 +597,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
                         if (tipH < inputHeight) continue; 
 
-                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
+                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, chartTool);
                         if (cap >= totalMass - 1) { bestCwt = cwt; bestBoom = boom; found = true; break; }
                     }
                     if (found) break; 
@@ -547,7 +613,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         const tipH = Math.sqrt(Math.pow(boom, 2) - Math.pow(inputDist, 2));
                         if (tipH < inputHeight) continue; 
 
-                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, selectedTool);
+                        const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, boom, cwt, chartTool);
                         if (cap > maxFallbackCap) {
                             maxFallbackCap = cap;
                             bestCwt = cwt;
@@ -579,7 +645,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                     const tipH = Math.sqrt(Math.pow(b, 2) - Math.pow(inputDist, 2));
                     if (tipH < inputHeight) return; 
                     
-                    const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, b, c, selectedTool);
+                    const cap = CraneCalculator.getCapacity(machine, inputDist, inputHeight, b, c, chartTool);
                     if (cap > maxCap) maxCap = cap;
                 });
             });
@@ -588,15 +654,15 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                  cwts.forEach(c => { 
                      machine.boomLengths.forEach(b => { 
                          if (b <= inputDist) return;
-                         const cap = CraneCalculator.getCapacity(machine, inputDist, 0, b, c, selectedTool); 
+                         const cap = CraneCalculator.getCapacity(machine, inputDist, 0, b, c, chartTool); 
                          if (cap > maxCap) maxCap = cap; 
                      }); 
                  });
             }
         } else {
             let activeZones = [];
-            if (machine.mode === 'zone_multi_tool' && selectedTool && machine.charts[selectedTool]) {
-                activeZones = machine.charts[selectedTool].zones;
+            if (machine.mode === 'zone_multi_tool' && chartTool && machine.charts[chartTool]) {
+                activeZones = machine.charts[chartTool].zones;
             } else if (machine.zones) { activeZones = machine.zones; }
             activeZones.forEach(z => {
                 let minX = Infinity, maxX = -Infinity;
@@ -625,8 +691,10 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
 
     // c) Masse de l'accessoire (Télescopiques uniquement)
     const telehandlerToolMassKg = useMemo(() => {
-        if (machine?.category === 'telehandler' && machine?.toolsMass && selectedTool && machine.toolsMass[selectedTool]) {
-            return machine.toolsMass[selectedTool] * 1000;
+        if (machine?.category === 'telehandler') {
+            const compTools = getCompatibleTools(machine);
+            const tool = compTools.find(t => t.name === selectedTool);
+            return tool ? tool.mass * 1000 : 0;
         }
         return 0;
     }, [machine, selectedTool]);
@@ -649,7 +717,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
         : (slingsMassKg / 1000);
 
     // --- 2. CALCULS DE SÉCURITÉ ---
-    const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, selectedTool);
+    const allowedLoad = CraneCalculator.getCapacity(machine, inputDist, inputHeight, selectedBoomLen, selectedCwt, chartTool);
     const safeLoad = Math.floor(allowedLoad); 
     
     // Le slider de la charge s'arrête à (Capacité Max Absolue - Poids des accessoires)
@@ -856,12 +924,20 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                 </>
                             )}
 
-                            {machine.hasTools && machine.tools && machine.tools.length > 0 && (
+                            {machine?.category === 'telehandler' && getCompatibleTools(machine).length > 0 && (
                                 <div className="mb-6">
                                     <label className="text-xm font-bold text-slate-700 mb-2 block">Accessoire / Outil</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {machine.tools.map(tool => ( <button key={tool} onClick={() => setSelectedTool(tool)} className={`px-3 py-1.5 text-sm font-bold rounded-lg border transition-all ${selectedTool === tool ? 'bg-[#004e98] text-white border-[#004e98]' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}> {tool} </button> ))}
-                                    </div>
+                                    <select 
+                                        value={selectedTool || ""}
+                                        onChange={(e) => setSelectedTool(e.target.value)}
+                                        className="w-full p-3 border border-slate-300 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-[#004e98] outline-none text-sm font-medium text-slate-700"
+                                    >
+                                        {getCompatibleTools(machine).map((tool, idx) => (
+                                            <option key={idx} value={tool.name}>
+                                                {tool.name} (+{tool.mass}t)
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             )}
 
@@ -1002,7 +1078,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                         inputDist={inputDist}
                         inputHeight={inputHeight}
                         selectedBoomLen={selectedBoomLen}
-                        selectedTool={selectedTool}
+                        selectedTool={chartTool}
                         isSafe={isSafe}
                         isAngleWarning={is80PercentWarning}
                         badgeText={badgeText}
