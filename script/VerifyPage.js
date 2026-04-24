@@ -940,7 +940,7 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                             {machine?.totalFootprint ? Math.ceil(machine.totalFootprint) : "---"} m²
                                         </span>
                                     </div>
-                                    <span className="text-[12px] text-slate-600 font-normal leading-tight">⚠️ Cas de charges défini avec déploiement maximal des patins</span>
+                                    <span className="text-[11px] text-slate-600 font-normal leading-tight">⚠️ Cas de charges défini avec déploiement maximal des patins</span>
                                 </div>
                             )}
                         </div>
@@ -971,12 +971,12 @@ const VerifyPage = ({ allMachines, onSaveLocal, onDeleteLocal, onResetLocal, onI
                                     <div className="flex justify-between text-[15px] font-bold text-slate-700 group relative">
                                         <span>Rmax (Charge centrée) :</span>
                                         <span className="text-slate-800">{groundPressureData.rMaxCentered.toFixed(1)} t</span>
-                                        <span className="absolute -bottom-4 left-0 text-[10px] text-slate-400 font-normal">Théorique : 25% de la masse totale</span>
+                                        <span className="absolute -bottom-4 left-0 text-[10px] text-slate-500 font-normal">Théorique : 25% de la masse totale</span>
                                     </div>
                                     <div className="flex justify-between text-[15px] font-bold text-slate-700 group relative pt-2">
                                         <span>Rmax (Pire cas - 75%) :</span>
                                         <span className="text-slate-800">{groundPressureData.rMaxWorstCase.toFixed(1)} t</span>
-                                        <span className="absolute -bottom-4 left-0 text-[10px] text-slate-400 font-normal">Sécurité : 75% de la masse totale sur 1 coin</span>
+                                        <span className="absolute -bottom-4 left-0 text-[10px] text-slate-500 font-normal">Sécurité : 75% de la masse totale sur 1 coin</span>
                                     </div>
                                 </div>
                                 
